@@ -42,10 +42,6 @@
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-stop.sh",
             "timeout": 5
-          },
-          {
-            "type": "prompt",
-            "prompt": "Did the assistant discover something non-obvious worth persisting as knowledge? (debugging insight, architectural pattern, API behavior, user preference). If yes, respond {\"ok\": false, \"reason\": \"Worth saving as [type]: [title] — [1-2 sentence summary]\"}. If nothing worth saving, respond {\"ok\": true}."
           }
         ]
       }
