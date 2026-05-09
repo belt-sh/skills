@@ -1,8 +1,10 @@
 #!/bin/bash
+# Runs after every Claude response — logs and triggers evaluation every 5th turn
 source "$(dirname "$0")/utils.sh"
 read_input
 log_hook "Stop"
 
+# Count assistant turns from transcript, only evaluate every 5th
 turns=$(count_turns)
 [ $((turns % 5)) -ne 0 ] && exit 0
 
