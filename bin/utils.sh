@@ -43,3 +43,13 @@ count_turns() {
   # Count lines with type user
   grep -c '"type":"user"' "$transcript" 2>/dev/null || echo 0
 }
+
+
+# Extract last_assistant_message from hook input
+# This is the most recent Claude response, already in $INPUT
+get_last_message() {
+  # Extract value between "last_assistant_message":" and next unescaped quote
+  # Truncate to 3000 chars to keep Haiku cost low
+  echo "$INPUT" | grep -ao '"last_assistant_message":"[^}]*' | head -1 | \
+    sed 's/"last_assistant_message":"//' | sed 's/"$//' | head -c 3000
+}
