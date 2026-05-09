@@ -34,14 +34,12 @@ get_session_id() { json_get "session_id"; }
 # Extract transcript_path from hook input
 get_transcript_path() { json_get "transcript_path"; }
 
-# Count real user turns from transcript
-# A turn = one external user message (not tool results or system messages)
-# Uses grep for speed (~8ms on 2500 lines)
+# Count user turns from transcript using grep (~8ms on 2500 lines)
 count_turns() {
   # Get path to the session's JSONL transcript
   local transcript=$(get_transcript_path)
   # If no transcript or file missing, return 0
   [ -z "$transcript" ] || [ ! -f "$transcript" ] && echo 0 && return
-  # Count lines with userType external — each is one real user turn
-  grep -c '"userType":"external"' "$transcript" 2>/dev/null || echo 0
+  # Count lines with type user
+  grep -c '"type":"user"' "$transcript" 2>/dev/null || echo 0
 }
