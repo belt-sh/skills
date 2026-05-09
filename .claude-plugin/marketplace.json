@@ -1,9 +1,14 @@
 {
+  "name": "belt-sh-skills",
+  "owner": {
+    "name": "belt.sh"
+  },
   "plugins": [
     {
       "name": "belt-sh",
       "description": "Belt — the cloud platform for AI agents. Run 250+ AI apps, manage knowledge, search and publish skills, connect MCP servers.",
-      "version": "0.1.0"
+      "version": "0.1.0",
+      "source": "./"
     }
   ]
 }
