@@ -11,7 +11,7 @@
     "UserPromptSubmit": [
       {
         "type": "command",
-        "command": "belt-hook-log.sh UserPromptSubmit | belt suggest 2>/dev/null; exit 0",
+        "command": "belt-hook-log.sh UserPromptSubmit | belt suggest --json 2>/dev/null; exit 0",
         "timeout": 3000
       }
     ],
