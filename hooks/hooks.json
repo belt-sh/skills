@@ -41,7 +41,8 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-stop.sh",
-            "timeout": 5
+            "timeout": 15,
+            "asyncRewake": true
           }
         ]
       }
