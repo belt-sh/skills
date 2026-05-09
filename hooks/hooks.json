@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "belt-hook-log.sh SessionStart | belt-bootstrap.sh --check-update 2>/dev/null; exit 0",
+            "command": "mkdir -p ~/.belt && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionStart]\" >> ~/.belt/hooks.log; exit 0",
             "timeout": 5000
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "belt-hook-log.sh UserPromptSubmit | belt suggest --json 2>/dev/null; exit 0",
+            "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [UserPromptSubmit] $(echo $input | head -c 200)\" >> ~/.belt/hooks.log; echo \"$input\" | belt suggest --json 2>/dev/null; exit 0",
             "timeout": 3000
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "belt-hook-log.sh PostToolUse | belt-bootstrap.sh --check-skill-mutation 2>/dev/null; exit 0",
+            "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [PostToolUse] $(echo $input | head -c 200)\" >> ~/.belt/hooks.log; exit 0",
             "timeout": 3000
           }
         ]
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "belt-hook-log.sh Stop; exit 0",
+            "command": "mkdir -p ~/.belt && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [Stop]\" >> ~/.belt/hooks.log; exit 0",
             "timeout": 5000
           }
         ]
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "belt-hook-log.sh SessionEnd; exit 0",
+            "command": "mkdir -p ~/.belt && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionEnd]\" >> ~/.belt/hooks.log; exit 0",
             "timeout": 3000
           }
         ]
