@@ -3,38 +3,58 @@
     "SessionStart": [
       {
         "matcher": "*",
-        "type": "command",
-        "command": "belt-hook-log.sh SessionStart | belt-bootstrap.sh --check-update 2>/dev/null; exit 0",
-        "timeout": 5000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt-hook-log.sh SessionStart | belt-bootstrap.sh --check-update 2>/dev/null; exit 0",
+            "timeout": 5000
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "belt-hook-log.sh UserPromptSubmit | belt suggest --json 2>/dev/null; exit 0",
-        "timeout": 3000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt-hook-log.sh UserPromptSubmit | belt suggest --json 2>/dev/null; exit 0",
+            "timeout": 3000
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
-        "type": "command",
-        "command": "belt-hook-log.sh PostToolUse | belt-bootstrap.sh --check-skill-mutation 2>/dev/null; exit 0",
-        "timeout": 3000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt-hook-log.sh PostToolUse | belt-bootstrap.sh --check-skill-mutation 2>/dev/null; exit 0",
+            "timeout": 3000
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "type": "command",
-        "command": "belt-hook-log.sh Stop; exit 0",
-        "timeout": 5000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt-hook-log.sh Stop; exit 0",
+            "timeout": 5000
+          }
+        ]
       }
     ],
     "SessionEnd": [
       {
-        "type": "command",
-        "command": "belt-hook-log.sh SessionEnd; exit 0",
-        "timeout": 3000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt-hook-log.sh SessionEnd; exit 0",
+            "timeout": 3000
+          }
+        ]
       }
     ]
   }
