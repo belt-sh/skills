@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.belt && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionStart]\" >> ~/.belt/hooks.log; exit 0",
+            "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionStart] $(echo $input | head -c 500)\" >> ~/.belt/hooks.log; exit 0",
             "timeout": 5000
           }
         ]
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.belt && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [Stop]\" >> ~/.belt/hooks.log; exit 0",
+            "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [Stop] $(echo $input | head -c 500)\" >> ~/.belt/hooks.log; exit 0",
             "timeout": 5000
           }
         ]
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.belt && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionEnd]\" >> ~/.belt/hooks.log; exit 0",
+            "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionEnd] $(echo $input | head -c 500)\" >> ~/.belt/hooks.log; exit 0",
             "timeout": 3000
           }
         ]
