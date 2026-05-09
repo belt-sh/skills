@@ -4,6 +4,10 @@
     "name": "inference.sh",
     "email": "hello@inference.sh"
   },
+  "metadata": {
+    "description": "Belt — the cloud platform for AI agents",
+    "version": "0.1.0"
+  },
   "plugins": [
     {
       "name": "belt",
