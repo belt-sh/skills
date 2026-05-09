@@ -7,7 +7,10 @@ Claude Code plugin for [belt](https://belt.sh) — the cloud platform for AI age
 ```
 /plugin marketplace add belt-sh/skills
 /plugin install belt
+/reload-plugins
 ```
+
+If skills don't appear after install, restart Claude Code or run `/reload-plugins`.
 
 ## What you get
 
