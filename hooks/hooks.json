@@ -55,8 +55,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionEnd] $(echo $input | head -c 500)\" >> ~/.belt/hooks.log; exit 0",
-            "timeout": 3000
+            "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionEnd] $(echo $input | head -c 500)\" >> ~/.belt/hooks.log; echo \"$input\" | belt session end 2>/dev/null; exit 0",
+            "timeout": 10000
           }
         ]
       }
