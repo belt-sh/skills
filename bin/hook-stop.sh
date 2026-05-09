@@ -10,16 +10,11 @@ log_hook "Stop"
 
 # Count user turns from the transcript
 turns=$(count_turns)
+# Log the count and modulo for debugging
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [Stop:debug] turns=$turns mod=$((turns % 5))" >> "$BELT_LOG"
 
-# Track last evaluated turn count
-last_file="$BELT_DIR/last_eval_$(get_session_id)"
-last=$(cat "$last_file" 2>/dev/null || echo 0)
-
-# Skip unless at least 5 turns since last evaluation
-[ $((turns - last)) -lt 5 ] && exit 0
-
-# Record this evaluation point
-echo "$turns" > "$last_file"
+# Only evaluate every 5th turn
+[ $((turns % 5)) -ne 0 ] && exit 0
 
 # TODO: belt dream — evaluate last 5 turns for knowledge capture
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [Stop:evaluate] turn=$turns" >> "$BELT_LOG"
