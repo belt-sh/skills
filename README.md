@@ -6,7 +6,7 @@ Claude Code plugin for [belt](https://belt.sh) — the cloud platform for AI age
 
 ```
 /plugin marketplace add belt-sh/skills
-/plugin install belt-sh@belt-sh-skills
+/plugin install belt
 ```
 
 ## What you get
