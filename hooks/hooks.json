@@ -42,6 +42,10 @@
             "type": "command",
             "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [Stop] $(echo $input | head -c 500)\" >> ~/.belt/hooks.log; exit 0",
             "timeout": 5000
+          },
+          {
+            "type": "prompt",
+            "prompt": "Did the assistant discover something non-obvious worth persisting as knowledge? (debugging insight, architectural pattern, API behavior, user preference). If yes, respond {\"ok\": false, \"reason\": \"Worth saving as [type]: [title] — [1-2 sentence summary]\"}. If nothing worth saving, respond {\"ok\": true}."
           }
         ]
       }
