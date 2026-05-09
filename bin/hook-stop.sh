@@ -1,6 +1,7 @@
 #!/bin/bash
 # Runs after every Claude response — every 5th turn, asks Haiku if there's knowledge worth saving
-# If Haiku finds something, outputs additionalContext nudging Claude to save it
+# Mirrors prompt hook behavior: returns {ok, reason} format
+# If ok:false, feeds reason back to Claude via decision:block
 
 # Load shared utilities
 source "$(dirname "$0")/utils.sh"
@@ -22,31 +23,19 @@ msg=$(get_last_message)
 # Skip if empty or too short to be interesting
 [ ${#msg} -lt 50 ] && exit 0
 
-# Ask Haiku to evaluate — one-shot, no tools, no session persistence
-result=$(echo "$msg" | claude --bare --no-session-persistence -p --model haiku --max-turns 1 \
-  "Does this assistant response contain a non-obvious insight worth saving as knowledge? Types: observation (debugging insight), concept (architecture pattern), preference (user preference), reference (API/tool behavior).
+# Ask Haiku — returns raw text, we tell it to output JSON
+raw=$(echo "$msg" | claude --bare --no-session-persistence -p --model haiku --max-turns 1 \
+  'Does this contain a non-obvious insight worth saving as knowledge? Types: observation (debugging insight), concept (architecture pattern), preference (user preference), reference (API/tool behavior). Respond ONLY with JSON, no other text. If yes: {"ok":false,"reason":"Worth saving as [type]: [title] — [summary]"} If no: {"ok":true}' 2>/dev/null)
 
-If YES, respond with EXACTLY this format, nothing else:
-SAVE|type|title|one sentence summary
+# Log what Haiku returned
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [Stop:haiku] turn=$turns raw=$raw" >> "$BELT_LOG"
 
-If NO, respond with exactly: SKIP
-
-Response to evaluate:" 2>/dev/null)
-
-# Log what Haiku said
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [Stop:haiku] turn=$turns result=$result" >> "$BELT_LOG"
-
-# If Haiku says save, output additionalContext nudging Claude
-if echo "$result" | grep -q "^SAVE|"; then
-  # Parse the SAVE|type|title|summary format
-  type=$(echo "$result" | cut -d'|' -f2)
-  title=$(echo "$result" | cut -d'|' -f3)
-  summary=$(echo "$result" | cut -d'|' -f4-)
-
-  # Output JSON that Claude Code injects as a system reminder
-  cat <<HOOKJSON
-{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":"Knowledge worth saving detected: [$type] $title — $summary. Consider saving with: echo \"$summary\" | belt know upload - --name \"$title\" --type $type"}}
-HOOKJSON
+# If Haiku said ok:false, feed reason back to Claude
+if echo "$raw" | grep -q '"ok".*false'; then
+  # Extract reason — grep for the value between "reason":" and next "
+  reason=$(echo "$raw" | grep -ao '"reason":"[^"]*' | head -1 | sed 's/"reason":"//')
+  # Decision block tells Claude to keep going with the reason as context
+  echo "{\"decision\":\"block\",\"reason\":\"$reason. Save with: belt know upload\"}"
 fi
 
 exit 0
