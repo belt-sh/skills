@@ -1,11 +1,12 @@
 # belt-sh/skills
 
-Claude Code plugin for [belt](https://belt.sh) — the skills registry for AI agents.
+Claude Code plugin for [belt](https://belt.sh) — the cloud platform for AI agents.
 
 ## Install
 
 ```
-/plugin install belt-sh
+/plugin marketplace add belt-sh/skills
+/plugin install belt-sh@belt-sh-skills
 ```
 
 ## What you get
@@ -16,13 +17,15 @@ Claude Code plugin for [belt](https://belt.sh) — the skills registry for AI ag
 | `/skill` | Search, use, install, publish skills |
 | `/knowledge` | Save and search your knowledge base |
 | `/apps` | Search and run 250+ AI apps |
+| `/suggest` | Unified search across skills, knowledge, and apps |
 
 ## Hooks (automatic)
 
 - **SessionStart** — checks for skill updates
 - **UserPromptSubmit** — searches skills/knowledge/apps, injects relevant suggestions
-- **Stop** — evaluates if session discovered knowledge worth saving or improved a skill
+- **Stop** — logs session events (knowledge capture coming soon)
 - **PostToolUse** — detects edits to belt-managed skills
+- **SessionEnd** — logs session summary
 
 ## Requires
 
