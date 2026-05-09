@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.belt && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionStart] $(cat | head -c 500)\" >> ~/.belt/hooks.log; exit 0",
-            "timeout": 5000
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-session-start.sh",
+            "timeout": 5
           }
         ]
       }
@@ -17,8 +17,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [UserPromptSubmit] $(echo $input | head -c 200)\" >> ~/.belt/hooks.log; echo \"$input\" | belt suggest --json 2>/dev/null; exit 0",
-            "timeout": 3000
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-user-prompt.sh",
+            "timeout": 3
           }
         ]
       }
@@ -29,8 +29,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.belt && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [PostToolUse] $(cat | head -c 200)\" >> ~/.belt/hooks.log; exit 0",
-            "timeout": 3000
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-post-tool.sh",
+            "timeout": 3
           }
         ]
       }
@@ -40,8 +40,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.belt && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [Stop] $(cat | head -c 500)\" >> ~/.belt/hooks.log; exit 0",
-            "timeout": 5000
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-stop.sh",
+            "timeout": 5
           },
           {
             "type": "prompt",
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.belt && input=$(cat) && echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) [SessionEnd] $(echo $input | head -c 500)\" >> ~/.belt/hooks.log; echo \"$input\" | belt claude session-end 2>/dev/null; exit 0",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-session-end.sh",
             "timeout": 30
           }
         ]
