@@ -3,10 +3,13 @@
 
 # Where belt stores logs and state
 BELT_DIR="$HOME/.belt"
+# Log file for all hook events
 BELT_LOG="$BELT_DIR/hooks.log"
+# Create the belt directory if it doesn't exist
 mkdir -p "$BELT_DIR"
 
 # Extract a top-level string value from JSON in $INPUT using grep
+# Works without jq/jt — matches "key":"value" pattern
 json_get() {
   echo "$INPUT" | grep -o "\"$1\":\"[^\"]*\"" | head -1 | cut -d'"' -f4
 }
@@ -18,18 +21,27 @@ read_input() {
 
 # Append timestamped log line: [EventName] truncated input
 log_hook() {
+  # First arg is the hook event name
   local event="$1"
+  # Second arg is max chars to log, defaults to 500
   local max="${2:-500}"
+  # Write UTC timestamp, event name, and truncated input to log file
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [$event] $(echo $INPUT | head -c $max)" >> "$BELT_LOG"
 }
 
-# Field extractors for common hook input fields
+# Extract session_id from hook input
 get_session_id() { json_get "session_id"; }
+# Extract transcript_path from hook input
 get_transcript_path() { json_get "transcript_path"; }
 
-# Count assistant messages in transcript via grep (~8ms on 2500 lines)
+# Count real user turns from transcript
+# A turn = one external user message (not tool results or system messages)
+# Uses grep for speed (~8ms on 2500 lines)
 count_turns() {
+  # Get path to the session's JSONL transcript
   local transcript=$(get_transcript_path)
+  # If no transcript or file missing, return 0
   [ -z "$transcript" ] || [ ! -f "$transcript" ] && echo 0 && return
-  grep -c '"type":"assistant"' "$transcript" 2>/dev/null || echo 0
+  # Count lines with userType external — each is one real user turn
+  grep -c '"userType":"external"' "$transcript" 2>/dev/null || echo 0
 }
