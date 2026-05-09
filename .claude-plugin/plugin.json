@@ -23,6 +23,7 @@
     "./skills/belt/SKILL.md",
     "./skills/skill/SKILL.md",
     "./skills/knowledge/SKILL.md",
-    "./skills/apps/SKILL.md"
+    "./skills/apps/SKILL.md",
+    "./skills/suggest/SKILL.md"
   ]
 }
