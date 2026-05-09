@@ -16,7 +16,7 @@
       "skills": [
         "./skills/belt",
         "./skills/skill",
-        "./skills/knowledge",
+        "./skills/remember",
         "./skills/apps",
         "./skills/suggest"
       ]
