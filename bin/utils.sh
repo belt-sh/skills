@@ -1,20 +1,15 @@
 #!/bin/bash
-# Shared utilities for belt hooks
+# Shared utilities for belt hooks — zero external dependencies (no jq/jt required)
 
 BELT_DIR="$HOME/.belt"
 BELT_LOG="$BELT_DIR/hooks.log"
 
-# Ensure belt directory exists
 mkdir -p "$BELT_DIR"
 
-# Pick best JSON tool available
-if command -v jt >/dev/null 2>&1; then
-  json_get() { jt ".$1" 2>/dev/null | tr -d '"'; }
-elif command -v jq >/dev/null 2>&1; then
-  json_get() { jq -r ".$1 // empty" 2>/dev/null; }
-else
-  json_get() { grep -o "\"$1\":\"[^\"]*\"" | head -1 | cut -d'"' -f4; }
-fi
+# Extract a top-level string value from JSON using grep
+json_get() {
+  echo "$INPUT" | grep -o "\"$1\":\"[^\"]*\"" | head -1 | cut -d'"' -f4
+}
 
 # Read stdin once, store it
 read_input() {
@@ -30,5 +25,17 @@ log_hook() {
 
 # Get session ID from input
 get_session_id() {
-  echo "$INPUT" | json_get "session_id"
+  json_get "session_id"
+}
+
+# Get transcript path from input
+get_transcript_path() {
+  json_get "transcript_path"
+}
+
+# Count assistant turns from transcript (fast grep, ~8ms)
+count_turns() {
+  local transcript=$(get_transcript_path)
+  [ -z "$transcript" ] || [ ! -f "$transcript" ] && echo 0 && return
+  grep -c '"type":"assistant"' "$transcript" 2>/dev/null || echo 0
 }
