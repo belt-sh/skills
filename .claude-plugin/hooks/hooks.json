@@ -4,14 +4,14 @@
       {
         "matcher": "*",
         "type": "command",
-        "command": "belt-bootstrap.sh --check-update 2>/dev/null; exit 0",
+        "command": "belt-hook-log.sh SessionStart | belt-bootstrap.sh --check-update 2>/dev/null; exit 0",
         "timeout": 5000
       }
     ],
     "UserPromptSubmit": [
       {
         "type": "command",
-        "command": "belt suggest 2>/dev/null; exit 0",
+        "command": "belt-hook-log.sh UserPromptSubmit | belt suggest 2>/dev/null; exit 0",
         "timeout": 3000
       }
     ],
@@ -19,20 +19,22 @@
       {
         "matcher": "Write|Edit",
         "type": "command",
-        "command": "belt-bootstrap.sh --check-skill-mutation 2>/dev/null; exit 0",
+        "command": "belt-hook-log.sh PostToolUse | belt-bootstrap.sh --check-skill-mutation 2>/dev/null; exit 0",
         "timeout": 3000
       }
     ],
     "Stop": [
       {
-        "type": "prompt",
-        "prompt": "Did the assistant discover something non-obvious worth persisting as knowledge? (debugging insight, architectural pattern, user preference, API behavior). If yes, respond with {\"ok\": false, \"reason\": \"Worth saving as [type]: [title] — [1-2 sentence summary]\"}. If nothing worth saving, respond with {\"ok\": true}.",
-        "timeout": 15000
-      },
+        "type": "command",
+        "command": "belt-hook-log.sh Stop; exit 0",
+        "timeout": 5000
+      }
+    ],
+    "SessionEnd": [
       {
-        "type": "agent",
-        "prompt": "Check if a belt-managed skill was used AND improved during this session. Read the local skill files under ~/.claude/skills/ and compare with the published version via `belt skill use <namespace/name>`. If improved, show what changed and suggest `belt skill upload`. If not improved, do nothing.",
-        "timeout": 60000
+        "type": "command",
+        "command": "belt-hook-log.sh SessionEnd; exit 0",
+        "timeout": 3000
       }
     ]
   }
