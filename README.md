@@ -18,6 +18,7 @@ If skills don't appear after install, restart Claude Code or run `/reload-plugin
 |---|---|
 | `/belt` | Install and set up belt CLI |
 | `/skill` | Search, use, install, publish skills |
+| `/skillify` | Turn a working solution into a permanent, tested skill |
 | `/knowledge` | Save and search your knowledge base |
 | `/apps` | Search and run 250+ AI apps |
 | `/suggest` | Unified search across skills, knowledge, and apps |
