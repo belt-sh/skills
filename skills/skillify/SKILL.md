@@ -61,9 +61,9 @@ Turn what just worked into a skill that works forever. One command: extract the 
    
    This goes in the Rules section as a concrete constraint, not a vague guideline.
 
-6. **Save** — Save to the registry:
+6. **Publish** — Upload to the registry:
    ```bash
-   belt skill save <skill-directory>
+   belt skill upload <skill-directory>
    ```
 
 ### Quality checklist
