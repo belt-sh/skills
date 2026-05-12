@@ -18,7 +18,8 @@
         "./skills/skill",
         "./skills/remember",
         "./skills/apps",
-        "./skills/suggest"
+        "./skills/suggest",
+        "./skills/skillify"
       ]
     }
   ]
