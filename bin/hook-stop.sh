@@ -9,6 +9,6 @@ read_input
 log_hook "Stop"
 
 # Belt handles turn counting, message extraction, and Haiku evaluation
-echo "$INPUT" | belt claude review 2>/dev/null
+echo "$INPUT" | belt claude review 2>>"$BELT_LOG"
 
 exit 0
