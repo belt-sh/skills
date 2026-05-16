@@ -7,10 +7,12 @@ allowed-tools: Bash(belt skill *)
 ## Skills
 
 ```bash
-belt skill search "query"           # search the registry
+belt skill list                     # list your skills
+belt skill search "query"           # search your skills
+belt skill store                    # browse the public skill store
+belt skill store search "query"     # search the store
 belt skill use <namespace/name>     # fetch and print a skill (on-demand)
 belt skill install <namespace/name> # install locally for your agent
-belt skill list                     # list installed skills
 belt skill get <namespace/name>     # view skill details
 belt skill upload <path>            # publish a skill (dir with SKILL.md or single file)
 ```

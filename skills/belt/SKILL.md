@@ -30,9 +30,10 @@ belt init claude-code
 ### Quick start
 
 ```bash
-belt skill search "web search"    # find skills
+belt skill list                   # your skills
+belt skill store search "web"     # find skills in the store
 belt knowledge list               # view your knowledge
-belt app list                     # browse AI apps
+belt app store                    # browse AI apps
 ```
 
 [belt.sh](https://belt.sh) · [docs](https://belt.sh/docs)

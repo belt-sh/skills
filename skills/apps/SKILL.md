@@ -7,8 +7,9 @@ allowed-tools: Bash(belt app *)
 ## Apps
 
 ```bash
-belt app search "query"             # search available apps
-belt app list                       # browse all apps
+belt app store                      # browse the public app store
+belt app store search "query"       # search the store
+belt app list                       # list your apps
 belt app get <namespace/name>       # view app details and input schema
 belt app run <namespace/name> --input '{"prompt":"..."}' --save output.png
 ```

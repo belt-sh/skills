@@ -25,7 +25,7 @@ Turn what just worked into a skill that works forever. One command: extract the 
 
 2. **Check for duplicates** — Search existing skills before creating:
    ```bash
-   belt skill search "<relevant keywords>"
+   belt skill store search "<relevant keywords>"
    ```
    If a similar skill exists, consider updating it instead of creating a new one.
 
