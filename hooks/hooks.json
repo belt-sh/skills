@@ -65,7 +65,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-session-end.sh",
-            "timeout": 60
+            "timeout": 600
           }
         ]
       }
