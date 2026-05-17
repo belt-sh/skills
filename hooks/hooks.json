@@ -41,7 +41,19 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-stop.sh",
-            "timeout": 15,
+            "timeout": 60,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-pre-compact.sh",
+            "timeout": 60,
             "async": true
           }
         ]
@@ -53,7 +65,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-session-end.sh",
-            "timeout": 30
+            "timeout": 60
           }
         ]
       }
