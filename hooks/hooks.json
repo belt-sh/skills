@@ -23,6 +23,18 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-skill-use.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
@@ -31,6 +43,16 @@
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-post-tool.sh",
             "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-skill-post.sh",
+            "timeout": 5
           }
         ]
       }

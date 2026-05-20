@@ -1,92 +1,130 @@
 ---
 name: skillify
-description: "Turn a working solution into a permanent, tested skill — extract pattern, create SKILL.md, write tests, publish to registry"
-allowed-tools: Bash(belt skill *), Read, Glob, Grep, Write, Edit
+description: "Turn a working solution into a permanent, tested skill — extract pattern, interrogate for depth, create SKILL.md, publish to registry. Use when the user says 'skillify', 'make this a skill', 'remember this as a skill', or when a multi-step workflow was refined through trial and error."
+allowed-tools: Bash(belt skill *), Read, Glob, Grep, Write, Edit, Agent
 ---
 
 ## Skillify
 
-Turn what just worked into a skill that works forever. One command: extract the pattern from this conversation, create a tested skill, and publish it to the registry.
+Turn what just worked into a skill that works forever. This follows a structured interrogation process — don't rush to write the SKILL.md.
 
 ### When to use
 
-- You just solved a problem and want to reuse the approach
-- You recovered from a failure and want to prevent recurrence
-- You built a workflow worth repeating
-- The user says "skillify", "make this a skill", "remember this as a skill", or similar
+- A multi-step workflow was refined through trial and error
+- The user recovered from a failure and wants to prevent recurrence
+- The user says "skillify", "make this a skill", "remember this as a skill"
+- A working solution emerged that could apply to other projects
 
 ### Process
 
-1. **Extract the pattern** — Review the conversation. Identify:
-   - What was the task?
-   - What approach worked (and what didn't)?
-   - What's the repeatable procedure vs. what was specific to this instance?
-   - Are there deterministic steps (same input → same output) vs. judgment steps (requires LLM reasoning)?
+#### 1. Triage — Is this actually worth a skill?
 
-2. **Check for duplicates** — Search existing skills before creating:
-   ```bash
-   belt skill store search "<relevant keywords>"
-   ```
-   If a similar skill exists, consider updating it instead of creating a new one.
+Before doing anything, evaluate:
+- **Refinement arc?** Did something fail first, then get corrected into a working approach? That correction IS the skill.
+- **Reusable?** Would this help in a different project, or is it specific to this exact codebase?
+- **Multi-step?** Is it a workflow with ordered steps, not a one-liner?
 
-3. **Create the skill directory** — Write a `SKILL.md` following this structure:
-   ```markdown
-   ---
-   name: <kebab-case-name>
-   description: "<one-line — what it does and when to use it>"
-   allowed-tools: <tools the skill needs>
-   ---
+If the answer to all three is "no", tell the user why and suggest saving it as knowledge instead (`belt knowledge upload`).
 
-   ## <Name>
+#### 2. Interrogate — Dig deep before writing
 
-   <When to use this skill — the trigger conditions.>
+Launch a subagent to analyze the conversation. The subagent should answer:
 
-   ### Process
+1. What specific steps make up this workflow? List them in order.
+2. Where did the naive approach fail? What corrections or pivots happened?
+3. What are the hard-won gotchas — things that look right but break?
+4. Which steps are deterministic (same input → same output) vs judgment (requires LLM reasoning)?
+5. What would someone need to know BEFORE attempting this?
 
-   <Numbered steps. Be specific about what's deterministic (use a script/tool)
-   vs. what requires judgment (let the LLM reason).>
+Be concrete — actual commands, endpoints, file paths, error messages.
 
-   ### Rules
+Present findings to the user for validation before proceeding.
 
-   <Hard constraints. Things that must always/never happen.
-   Each rule should exist because of a specific failure that taught the lesson.>
-   ```
+#### 3. Check for existing skills
 
-4. **Separate deterministic from latent** — If any step is "same input, same output" (API calls, file parsing, date math, data lookup), it should be a script, not LLM reasoning. Create helper scripts alongside the SKILL.md if needed.
+Search for duplicates and related skills:
+```bash
+belt skill search "<relevant keywords>"
+belt skill store search "<relevant keywords>"
+```
 
-5. **Write the failure case** — If this skill came from a failure, document it:
-   - What went wrong
-   - Why the naive approach fails
-   - How the skill prevents recurrence
-   
-   This goes in the Rules section as a concrete constraint, not a vague guideline.
+If a similar skill exists, fetch and review it:
+```bash
+belt skill use <namespace/name>
+```
 
-6. **Publish** — Upload to the registry:
-   ```bash
-   belt skill upload <skill-directory>
-   ```
+Then decide:
+- **Create new** — if genuinely novel
+- **Update existing** — if the conversation revealed something the existing skill missed. Review line-by-line:
+  - What specific instructions were wrong or missing?
+  - What new gotchas should be added?
+  - What existing content is still correct?
+
+#### 4. Produce the SKILL.md
+
+Write the skill with these quality criteria:
+
+**Abstraction**: Remove instance-specific details (specific file paths, project names, API keys). Keep the reusable pattern.
+
+**Conciseness**: Capture the pattern in minimum words. Dense > verbose. Every line must earn its place.
+
+**Actionability**: Every step should be executable. No vague "consider doing X" — say exactly what to do and when.
+
+**Deterministic work is deterministic**: If a step is "same input → same output" (API calls, file parsing, data lookup), it should be a script or exact command, not LLM reasoning.
+
+**Rules have reasons**: Every constraint traces back to a specific failure. Not "always validate input" but "validate the response schema because the API returns 200 with an error body when the model name is wrong (discovered when deployment succeeded but inference returned empty)."
+
+**Pushy description**: The `description` field in frontmatter determines whether this skill gets loaded. Be explicit about trigger conditions. Instead of "Helps with deployments" write "Deploy and test inference.sh apps — use when building new apps, adding providers, or debugging deployment failures. Trigger on: app creation, provider integration, deploy errors, pricing configuration."
+
+#### SKILL.md structure
+
+```markdown
+---
+name: <kebab-case-name>
+description: "<what it does> — <when to use it, be specific and slightly pushy about trigger conditions>"
+allowed-tools: <tools needed>
+---
+
+## <Name>
+
+<One paragraph: what this skill does and the key insight that makes it valuable.>
+
+### When to use
+
+<Specific trigger conditions — not vague categories but concrete situations.>
+
+### Process
+
+<Numbered steps. Each step says what to do, not what to consider.
+Mark deterministic steps with [deterministic] and judgment steps with [judgment].>
+
+### Rules
+
+<Hard constraints from real failures. Each rule format:
+- Rule statement
+- Why: the specific failure that taught this lesson>
+
+### Gotchas
+
+<Things that look right but break. Format:
+- What seems correct → What actually happens → What to do instead>
+```
+
+#### 5. Publish
+
+```bash
+belt skill upload <skill-directory>
+```
+
+Same name = new version. Identical content is skipped.
 
 ### Quality checklist
 
-Before publishing, verify:
-
-- [ ] **Trigger is clear** — description says exactly when this skill should fire, not vaguely
-- [ ] **Steps are ordered** — someone reading this cold can follow the procedure
-- [ ] **Deterministic work is deterministic** — no LLM reasoning for things code can do
-- [ ] **Rules have reasons** — every constraint traces back to a real failure or design decision
-- [ ] **No duplicates** — searched the registry, this doesn't overlap with existing skills
-- [ ] **Tested it** — the skill was used at least once and produced correct output
-
-### Examples
-
-**From a failure:**
-> "The agent kept doing timezone math in its head and getting it wrong. Skillify it."
-→ Skill with rule: "NEVER do UTC conversion in your head. Always use a deterministic time library." + helper script that outputs current time with timezone.
-
-**From a success:**
-> "That webhook integration was painful but it works now. Skillify it."
-→ Skill capturing the OAuth flow steps, common pitfalls, and the working configuration pattern.
-
-**From a workflow:**
-> "Every time I deploy I do the same 5 things. Skillify it."
-→ Skill with the 5 ordered steps, noting which are deterministic (run tests, build) vs. judgment (review diff, decide rollback).
+Before publishing:
+- [ ] Triage passed — this is genuinely reusable, not a one-off
+- [ ] Interrogation done — the hard-won details are captured
+- [ ] No duplicates — searched registry
+- [ ] Description is pushy — lists explicit trigger conditions
+- [ ] Steps are ordered — someone cold can follow the procedure
+- [ ] Rules have reasons — every constraint traces to a failure
+- [ ] Deterministic work uses scripts/commands, not LLM reasoning
