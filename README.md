@@ -1,8 +1,10 @@
 # belt-sh/skills
 
-Claude Code plugin for [belt](https://belt.sh) — the cloud platform for AI agents.
+Plugin for [belt](https://belt.sh) — the cloud platform for AI agents. Works with Claude Code and OpenAI Codex.
 
 ## Install
+
+### Claude Code
 
 ```
 /plugin marketplace add belt-sh/skills
@@ -10,7 +12,21 @@ Claude Code plugin for [belt](https://belt.sh) — the cloud platform for AI age
 /reload-plugins
 ```
 
-If skills don't appear after install, restart Claude Code or run `/reload-plugins`.
+### OpenAI Codex
+
+```
+codex plugin marketplace add belt-sh/skills
+codex plugin install belt
+```
+
+Then run `/hooks` in Codex to review and trust belt hooks.
+
+### Any agent (via belt CLI)
+
+```bash
+belt init codex     # or cursor, gemini, windsurf
+belt claude init    # Claude Code
+```
 
 ## What you get
 
@@ -25,11 +41,12 @@ If skills don't appear after install, restart Claude Code or run `/reload-plugin
 
 ## Hooks (automatic)
 
-- **SessionStart** — checks for skill updates
+- **SessionStart** — checks belt is installed and authenticated
 - **UserPromptSubmit** — searches skills/knowledge/apps, injects relevant suggestions
-- **Stop** — logs session events (knowledge capture coming soon)
-- **PostToolUse** — detects edits to belt-managed skills
-- **SessionEnd** — logs session summary
+- **Stop** — extracts reusable knowledge and skills from the session
+- **PreCompact** — captures knowledge before conversation compaction
+- **PostToolUse** — detects edits to belt-managed skills (Claude Code)
+- **SessionEnd** — final knowledge extraction + session summary (Claude Code)
 
 ## Requires
 
