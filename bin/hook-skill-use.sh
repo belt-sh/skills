@@ -16,7 +16,7 @@ if [ -z "$skill_name" ]; then
 fi
 
 # Search belt for related resources
-related=$(belt suggest "$skill_name" --json --agent 2>/dev/null)
+related=$(belt suggest "$skill_name" --json 2>/dev/null)
 
 if [ -z "$related" ]; then
   echo '{}'
