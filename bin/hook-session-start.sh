@@ -15,16 +15,10 @@ if ! command -v belt >/dev/null 2>&1; then
   exit 0
 fi
 
-# Check belt is authenticated
-auth_ok=true
-if ! belt me >/dev/null 2>&1; then
-  auth_ok=false
-fi
-
-# Build context output — this is what Claude sees at the start of every session
-if [ "$auth_ok" = true ]; then
-  user=$(belt me 2>/dev/null | head -1)
-  echo "belt: $user"
+# Check auth and get user in one call
+user_output=$(belt me 2>&1)
+if [ $? -eq 0 ]; then
+  echo "belt: $(echo "$user_output" | head -1)"
 else
   echo "⚠️ belt is not authenticated. Knowledge and skill persistence is disabled. Run: belt login"
 fi
