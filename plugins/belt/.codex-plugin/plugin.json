@@ -1,0 +1,31 @@
+{
+  "name": "belt",
+  "version": "1.0.0",
+  "description": "Belt — the cloud platform for AI agents. Run 250+ AI apps, manage knowledge, search and publish skills, connect MCP servers.",
+  "author": {
+    "name": "inference.sh",
+    "email": "hello@inference.sh"
+  },
+  "homepage": "https://belt.sh",
+  "repository": "https://github.com/belt-sh/skills",
+  "license": "MIT",
+  "keywords": [
+    "belt",
+    "skills",
+    "knowledge",
+    "registry",
+    "ai",
+    "agents",
+    "inference"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {
+    "displayName": "belt",
+    "shortDescription": "inference.sh — 250+ AI apps, skills registry, cross-session memory",
+    "developerName": "inference.sh",
+    "category": "Productivity",
+    "websiteURL": "https://belt.sh",
+    "brandColor": "#000000"
+  }
+}

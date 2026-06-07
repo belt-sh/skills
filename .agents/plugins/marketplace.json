@@ -9,7 +9,7 @@
       "description": "Belt — the cloud platform for AI agents. Run 250+ AI apps, manage knowledge, search and publish skills, connect MCP servers.",
       "source": {
         "source": "local",
-        "path": "./"
+        "path": "./plugins/belt"
       },
       "policy": {
         "installation": "AVAILABLE"
