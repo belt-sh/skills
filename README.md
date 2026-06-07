@@ -24,8 +24,8 @@ Then run `/hooks` in Codex to review and trust belt hooks.
 ### Any agent (via belt CLI)
 
 ```bash
-belt plugin init claude   # Claude Code
-belt plugin init codex    # or cursor, gemini, windsurf
+belt init codex     # or cursor, gemini, windsurf
+belt claude init    # Claude Code
 ```
 
 ## What you get
