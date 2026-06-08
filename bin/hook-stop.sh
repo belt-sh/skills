@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs after every Claude response — delegates all logic to belt claude review
+# Runs after every agent response — delegates all logic to belt plugin review
 
 source "$(dirname "$0")/utils.sh"
 read_input
