@@ -38,6 +38,7 @@ belt plugin init codex    # or cursor, gemini, windsurf
 | `/knowledge` | Save and search your knowledge base |
 | `/apps` | Search and run 250+ AI apps |
 | `/suggest` | Unified search across skills, knowledge, and apps |
+| `/agentify` | Build and deploy a custom AI agent with tools |
 
 ## Hooks (automatic)
 
@@ -50,7 +51,7 @@ belt plugin init codex    # or cursor, gemini, windsurf
 
 ## Requires
 
-- [belt CLI](https://belt.sh) (`curl -fsSL https://belt.sh/install | sh`)
+- [belt CLI](https://belt.sh) — install with `belt` or see `/belt` skill
 - `belt login` for authenticated features
 
 All hooks fail silently if belt is not installed. Skills work as plain reference without belt.

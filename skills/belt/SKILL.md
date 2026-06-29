@@ -1,7 +1,7 @@
 ---
 name: belt
 description: "Install and set up belt — the cloud platform CLI for AI agents"
-allowed-tools: Bash(belt *), Bash(curl *)
+allowed-tools: Bash(belt *), Bash(which belt), Bash(curl -fsSL https://cli.inference.sh -o *), Bash(sh /tmp/belt-install.sh)
 ---
 
 ## Belt CLI
@@ -10,8 +10,24 @@ Belt is the cloud platform for AI agents. Run 250+ AI apps, manage knowledge, se
 
 ### Install
 
+First check if belt is already installed:
+
 ```bash
-curl -fsSL https://belt.sh/install | sh
+which belt && belt --version
+```
+
+If belt is already installed, skip to Authenticate.
+
+If not installed, download the installer, then run it:
+
+```bash
+curl -fsSL https://cli.inference.sh -o /tmp/belt-install.sh
+```
+
+Review what the script does, then install:
+
+```bash
+sh /tmp/belt-install.sh
 ```
 
 ### Authenticate
