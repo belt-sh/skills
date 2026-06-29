@@ -15,14 +15,36 @@ Turn a workflow, task, or idea into a deployed agent on belt. Agents get a model
 - The user says "agentify", "make an agent", "create an agent", "build a bot"
 - A skill or manual process would benefit from tool access (APIs, MCP, integrations)
 
+### Key concepts
+
+**Context variables** are runtime inputs passed via `--context key=value`. They appear in the agent's conversation as structured context the model can read. Use them in `call` tool URLs with `{{context.var_name}}` template syntax. In system prompts, just reference them by name — the model receives them automatically.
+
+**Internal tools** default to all OFF when omitted from the YAML. Set explicitly:
+- `memory: true` — agent can store/recall knowledge across conversations
+- `plan: true` — agent can create and track execution plans
+- `widget: true` — agent can render UI widgets
+
+**MCP tools vs call tools**: MCP tools connect to external services via OAuth (Todoist, Linear, Slack). Call tools are direct HTTP requests to any API with bearer auth.
+
 ### Process
+
+#### 0. Learn from a working agent [recommended first step]
+
+Pull an existing agent to see what real YAML looks like:
+
+```bash
+belt agent list
+belt agent pull <namespace/agent-name> --save /tmp/reference-agent.yml
+```
+
+Read the YAML — it shows the exact field names, structure, and how tools are defined. This is the fastest way to understand the format.
 
 #### 1. Define the agent's purpose
 
 Ask the user:
 - **What does this agent do?** One sentence.
 - **What inputs does it need?** These become context variables.
-- **What tools does it need?** MCP servers, API calls, or built-in tools (memory, plan, widget).
+- **What tools does it need?** MCP servers, API calls, or built-in tools.
 - **What model should power it?** Default: `openrouter/claude-sonnet-46`. Use `openrouter/claude-haiku-45` for simple/high-volume agents.
 
 If the conversation already contains a working workflow, extract these from context instead of asking.
@@ -38,74 +60,151 @@ If a similar agent exists, pull and review it:
 belt agent pull <namespace/name> --save /tmp/existing-agent.yml
 ```
 
-Decide: create new or update existing.
+#### 3. Set up tools
 
-#### 3. Discover available tools
+**For MCP tools** (Todoist, Linear, Slack, GitHub, etc.):
 
-**MCP tools** — browse connected MCP servers and their tools:
+First, connect the MCP server. This opens a browser for OAuth:
 ```bash
-belt mcp list                          # connected servers
-belt mcp tools <server-ref>            # tools on a server
-belt mcp search "todoist"              # find new servers
+belt mcp search "todoist"              # find the server
+belt mcp connect <server-slug>         # opens browser for OAuth
 ```
 
-**Integrations** — check what's connected for auth:
+After connecting, get the integration ID — you'll need it for the YAML:
 ```bash
-belt integrations list                 # connected integrations
-belt integrations connect <provider>   # connect new ones
+belt integrations list --json          # find the "id" field for your integration
 ```
 
-To use an MCP tool, you need the integration ID and tool name: `--mcp <integration_id>:<tool_name>`.
+The `id` field (e.g. `46e8a4bqj9ddx8gmana01b2shq`) is what goes in the YAML as `integration_id`.
+
+Then list available tools:
+```bash
+belt mcp tools <server-slug>           # only works after connecting
+```
+
+**For call tools** (direct HTTP APIs):
+
+Set up secrets for API authentication:
+```bash
+belt secrets set my_api_key sk-12345
+```
+
+No connection step needed — call tools are just HTTP requests defined in the YAML.
+
+**If `belt mcp connect` requires a browser** and you're in a headless environment, tell the user they need to run `belt mcp connect <slug>` in their local terminal first.
 
 #### 4. Write the agent YAML
 
-Create the agent definition. This is the full spec — every field is optional except `name`.
+**Minimal agent** (no tools):
 
 ```yaml
-name: <kebab-case-name>
-description: <one line — what it does>
+name: my-agent
+description: what it does in one line
 core_app:
   ref: openrouter/claude-sonnet-46
 system_prompt: |
-  <clear, direct instructions for the agent>
+  You are a helpful assistant that does X.
+  When the user asks Y, do Z.
+```
+
+**Agent with context variables**:
+
+```yaml
+name: pr-reviewer
+description: reviews pull requests
+core_app:
+  ref: openrouter/claude-sonnet-46
+system_prompt: |
+  You review pull requests. The user provides a PR URL
+  and you analyze the changes and provide feedback.
 context:
-  - name: <variable_name>
-    description: <what this input is>
+  - name: repo
+    description: GitHub repo in owner/name format
     required: true
-skills:
-  - name: <skill-name>
-    skill_id: <namespace/skill-name>
-    description: <when the agent should use this skill>
-internal_tools:
-  memory: true    # agent can store/recall knowledge
-  plan: false     # agent can create execution plans
-  widget: false   # agent can render UI widgets
+  - name: pr_number
+    description: pull request number
+    required: true
+```
+
+**Agent with MCP tools** (real working example):
+
+```yaml
+name: todoist-bot
+description: manages todoist tasks
+core_app:
+  ref: openrouter/claude-sonnet-46
+system_prompt: |
+  You manage Todoist tasks. Use find-projects to list projects.
 tools:
-  - name: <tool_name>
+  - name: find-projects
+    type: mcp
+    description: list all Todoist projects
+    mcp:
+      integration_id: 46e8a4bqj9ddx8gmana01b2shq  # from: belt integrations list --json
+      tool_name: find-projects                      # from: belt mcp tools todoist
+```
+
+**Agent with call tools** (direct HTTP):
+
+```yaml
+name: status-checker
+description: checks service health
+core_app:
+  ref: openrouter/claude-haiku-45
+system_prompt: |
+  You check service status. Use the health_check tool
+  to verify the service at the given URL is responding.
+context:
+  - name: service_url
+    description: base URL of the service to check
+    required: true
+tools:
+  - name: health_check
     type: call
-    description: <what the tool does>
+    description: check if a service is healthy
     call:
-      method: GET|POST|PUT|DELETE
-      url: https://api.example.com/endpoint/{{context.variable}}
+      method: GET
+      url: "{{context.service_url}}/health"
+```
+
+**Agent with call tools + auth**:
+
+```yaml
+tools:
+  - name: get_data
+    type: call
+    description: fetch data from the API
+    call:
+      method: GET
+      url: https://api.example.com/data
       auth:
         type: bearer
-        secret: <secret_name>
+        secret: my_api_key  # set with: belt secrets set my_api_key sk-xxx
       input_schema:
         type: object
         properties:
-          field:
+          query:
             type: string
-  - name: <mcp_tool_name>
-    type: mcp
-    mcp:
-      integration_id: <integration_id>
-      tool_name: <tool_name>
 ```
 
-Save to a file:
-```bash
-# save as <agent-name>.yml in the current directory
+**Agent with skills and internal tools**:
+
+```yaml
+name: pricing-agent
+description: configures app pricing
+core_app:
+  ref: openrouter/claude-sonnet-45
+skills:
+  - name: cel-pricing
+    skill_id: infsh/cel-pricing
+    description: CEL pricing reference and patterns
+internal_tools:
+  memory: true
+  plan: false
+  widget: false
 ```
+
+Save to a file named `<agent-name>.yml`.
 
 #### 5. Deploy
 
@@ -115,17 +214,21 @@ belt agent deploy ./<agent-name>.yml
 
 Same name = update. New name = create. The CLI returns the agent ref.
 
+**Important**: deploy does NOT validate integration IDs or tool configurations. Invalid tools only fail at runtime. Always test after deploying.
+
 #### 6. Test
 
 Run the agent with a test message:
 ```bash
+belt agent run <namespace/agent-name> "test message"
 belt agent run <namespace/agent-name> "test message" --context key=value
 ```
 
-Verify:
-- Agent responds correctly
-- Tools are called as expected
-- Context variables are passed through
+**What to check:**
+- Agent responds correctly to the test message
+- Tools are actually called (not just described)
+- Context variables are received by the agent
+- MCP tools don't return "integration not found" — if they do, the integration_id is wrong. Re-check with `belt integrations list --json`
 - Error cases are handled in the system prompt
 
 If something is wrong, edit the YAML and redeploy:
@@ -133,22 +236,39 @@ If something is wrong, edit the YAML and redeploy:
 belt agent deploy ./<agent-name>.yml
 ```
 
-#### 7. Share the ref
+#### 7. Iterate and share
 
-The agent is now callable by anyone with access:
+Pull the deployed config to see what the server stored:
+```bash
+belt agent pull <namespace/agent-name>
+```
+
+The agent is now callable:
 ```bash
 belt agent run <namespace/agent-name> "message"
 ```
 
-Or via the API for programmatic use.
+Continue a conversation:
+```bash
+belt agent run <namespace/agent-name> "follow up" --chat <chat_id>
+```
+
+### Troubleshooting
+
+| Problem | Cause | Fix |
+|---|---|---|
+| "integration not found" at runtime | wrong integration_id in YAML | run `belt integrations list --json`, use the `id` field |
+| "not connected" from `belt mcp tools` | MCP server not connected yet | run `belt mcp connect <slug>` first (needs browser) |
+| `belt mcp connect` shows nothing | OAuth flow needs a browser | run the command in a local terminal, not headless |
+| agent ignores tools | system prompt doesn't mention them | explicitly tell the agent when/how to use each tool |
+| context variables not received | missing `--context` flag at runtime | pass with `belt agent run ... --context key=value` |
 
 ### Rules
 
-- **System prompt is everything**: agents are only as good as their instructions. Be specific about workflow steps, error handling, and when to use which tool.
-- **Context variables are typed inputs**: use them for IDs, refs, and parameters the agent needs at runtime. Don't hardcode values that should be dynamic.
-- **MCP tools need connected integrations**: if using MCP tools, ensure the integration is connected first with `belt integrations connect`.
-- **Secrets for API auth**: use `belt secrets set <name> <value>` to store API keys, then reference them in tool auth as `secret: <name>`.
-- **Test before sharing**: always run the agent with a real message before declaring it done.
+- **System prompt is everything**: be specific about workflow steps, error handling, and when to use which tool. Vague prompts produce vague agents.
+- **Always test after deploy**: deploy doesn't validate tools. A successful deploy does not mean the agent works.
+- **Pull before you write**: `belt agent pull` on an existing agent is the best reference for YAML structure.
+- **Secrets before call tools**: run `belt secrets set <name> <value>` before deploying agents that use `auth.secret`.
 
 ### Quick create (no YAML)
 
@@ -161,7 +281,7 @@ belt agent create my-agent "description" \
   --mcp <integration_id>:<tool_name>
 ```
 
-Then pull the YAML if you need to add more configuration later:
+Then pull the YAML to add more configuration:
 ```bash
 belt agent pull <namespace>/my-agent --save my-agent.yml
 ```
