@@ -55,16 +55,6 @@
             "timeout": 5
           }
         ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-agent-post.sh",
-            "timeout": 5
-          }
-        ]
       }
     ],
     "Stop": [
