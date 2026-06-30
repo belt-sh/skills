@@ -28,7 +28,22 @@ Turn a workflow, task, or idea into a deployed agent on belt. Agents get a model
 
 ### Process
 
-#### 0. Learn from a working agent [recommended first step]
+#### 0. Analyze the conversation first [MANDATORY]
+
+Before asking anything, review what happened in this conversation. Look for:
+- Multi-step workflows that were executed (API calls, deployments, configurations)
+- Repeatable patterns that could run autonomously
+- Tool sequences that could be packaged into an agent
+
+If you find workflow candidates, present them to the user:
+> "Based on this session, here's what could become an agent:
+> 1. **<name>** — <what it would do>, triggered by <what>
+> 2. **<name>** — <what it would do>, triggered by <what>
+> Which one should we build? Or describe something different."
+
+Only ask "what kind of agent?" if the conversation has no workflow context.
+
+#### 0.5. Learn from a working agent [recommended]
 
 Pull an existing agent to see what real YAML looks like:
 
@@ -37,17 +52,15 @@ belt agent list
 belt agent pull <namespace/agent-name> --save /tmp/reference-agent.yml
 ```
 
-Read the YAML — it shows the exact field names, structure, and how tools are defined. This is the fastest way to understand the format.
+Read the YAML — it shows the exact field names, structure, and how tools are defined.
 
 #### 1. Define the agent's purpose
 
-Ask the user:
+From the conversation analysis or user input, pin down:
 - **What does this agent do?** One sentence.
 - **What inputs does it need?** These become context variables.
 - **What tools does it need?** MCP servers, API calls, or built-in tools.
 - **What model should power it?** Default: `openrouter/claude-sonnet-46`. Use `openrouter/claude-haiku-45` for simple/high-volume agents.
-
-If the conversation already contains a working workflow, extract these from context instead of asking.
 
 #### 2. Check for existing agents
 
