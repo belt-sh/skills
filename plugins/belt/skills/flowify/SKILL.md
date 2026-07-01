@@ -45,7 +45,9 @@ belt app search "<query>"
 belt app get <namespace/app-name>     # check input/output schemas
 ```
 
-For each app in the pipeline, note its input fields and output fields — you'll need these to wire connections.
+For each app in the pipeline, note its input fields and output fields — you'll need these to wire connections. Always verify an app exists before adding it as a node — `belt app get` will error if it doesn't.
+
+Use `belt app sample <app>` to see what valid input values look like (e.g. voice IDs, model names).
 
 #### 2. Create the flow
 
@@ -94,7 +96,12 @@ belt flow edit node set-input <flow-id> <node-name> <key> --from input:<field-na
 
 Define what the caller passes in:
 ```bash
-belt flow edit set-schema <flow-id> --field "text:string:required:Plain text to process"
+belt flow edit set-schema <flow-id> --input '{"type":"object","properties":{"text":{"type":"string","description":"Plain text to process"}},"required":["text"]}'
+```
+
+Set output schema too if needed:
+```bash
+belt flow edit set-schema <flow-id> --output '{"type":"object","properties":{"audio":{"type":"string"}}}'
 ```
 
 #### 7. Set flow outputs
@@ -158,7 +165,7 @@ belt flow edit node set-input <fid> tts model eleven_v3
 belt flow edit node set-input <fid> tts voice_id "p14E9FuOqbWvwJH0YFio"
 
 # Set flow input/output
-belt flow edit set-schema <fid> --field "text:string:required:Text to speak"
+belt flow edit set-schema <fid> --input '{"type":"object","properties":{"text":{"type":"string","description":"Text to speak"}},"required":["text"]}'
 belt flow edit output set <fid> audio --from tts:audio
 
 # Verify
