@@ -45,7 +45,7 @@ belt app search "<query>"
 belt app get <namespace/app-name>     # check input/output schemas
 ```
 
-For each app in the pipeline, note its input fields and output fields — you'll need these to wire connections. Always verify an app exists before adding it as a node — `belt app get` will error if it doesn't.
+For each app in the pipeline, note its input fields and output fields — you'll need these to wire connections.
 
 Use `belt app sample <app>` to see what valid input values look like (e.g. voice IDs, model names).
 
