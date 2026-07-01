@@ -56,37 +56,73 @@ python: "3.11"  # or node: "20"
 
 #### 3. Implement inference.py / inference.js
 
+The scaffold generates `RunInput`, `RunOutput`, and `App` classes. Edit these to match your app's purpose.
+
 **Python pattern:**
 ```python
-from inference import BaseApp, BaseAppInput, BaseAppOutput
+from inferencesh import BaseApp, BaseAppSetup, File, OutputMeta
+from pydantic import BaseModel, Field
+from typing import Optional
 
-class Input(BaseAppInput):
-    prompt: str
-    # typed fields with descriptions
+class RunInput(BaseModel):
+    text: str = Field(description="text to process")
+    max_length: int = Field(default=100, description="max output length")
 
-class Output(BaseAppOutput):
-    result: str
-    # output fields
+class RunOutput(BaseModel):
+    result: str = Field(description="processed result")
 
 class App(BaseApp):
-    def setup(self):
+    async def setup(self, config: BaseAppSetup):
         # one-time init (load models, create clients)
         pass
 
-    def run(self, input: Input) -> Output:
+    async def run(self, input_data: RunInput) -> RunOutput:
         # the actual work
-        return Output(result="...")
+        return RunOutput(result="...")
+```
+
+**Apps that call other inference.sh apps** — use the `AsyncInference` client:
+```python
+from inferencesh import BaseApp, BaseAppSetup, AsyncInference
+from pydantic import BaseModel, Field
+
+class RunInput(BaseModel):
+    text: str = Field(description="text to process")
+
+class RunOutput(BaseModel):
+    result: str = Field(description="processed result")
+
+class App(BaseApp):
+    async def setup(self, config: BaseAppSetup):
+        self.client = AsyncInference()
+
+    async def run(self, input_data: RunInput) -> RunOutput:
+        response = await self.client.run(
+            app="openrouter/any-model",
+            input={"text": input_data.text, "model": "google/gemini-2.5-flash"}
+        )
+        return RunOutput(result=response["response"])
+```
+
+Always check actual input/output field names with `belt app get <app> --json` before calling. Common gotcha: openrouter/any-model uses `text` not `prompt`, returns `response` not `text`.
+
+Add `aiohttp` to `requirements.txt` if using `AsyncInference`.
+
+**For local testing of apps that call other apps**, set your API key:
+```bash
+INFERENCE_API_KEY=$(belt secrets get INFSH_API_KEY 2>/dev/null || belt me --json | jq -r .api_key) belt app test --input input.json
 ```
 
 **For upstream API costs**, use `RawMeta(cost=cents)` in output_meta:
 ```python
-from inference import RawMeta
+from inferencesh import RawMeta
 
-class Output(BaseAppOutput):
+class RunOutput(BaseModel):
+    result: str
     output_meta: dict = None
 
 # in run():
-return Output(
+return RunOutput(
     result=result,
     output_meta=RawMeta(cost=cost_in_cents)
 )
