@@ -81,37 +81,7 @@ class App(BaseApp):
         return RunOutput(result="...")
 ```
 
-**Apps that call other inference.sh apps** — use the `AsyncInference` client:
-```python
-from inferencesh import BaseApp, BaseAppSetup, AsyncInference
-from pydantic import BaseModel, Field
-
-class RunInput(BaseModel):
-    text: str = Field(description="text to process")
-
-class RunOutput(BaseModel):
-    result: str = Field(description="processed result")
-
-class App(BaseApp):
-    async def setup(self, config: BaseAppSetup):
-        self.client = AsyncInference()
-
-    async def run(self, input_data: RunInput) -> RunOutput:
-        response = await self.client.run(
-            app="openrouter/any-model",
-            input={"text": input_data.text, "model": "google/gemini-2.5-flash"}
-        )
-        return RunOutput(result=response["response"])
-```
-
-Always check actual input/output field names with `belt app get <app> --json` before calling. Common gotcha: openrouter/any-model uses `text` not `prompt`, returns `response` not `text`.
-
-Add `aiohttp` to `requirements.txt` if using `AsyncInference`.
-
-**For local testing of apps that call other apps**, set your API key:
-```bash
-INFERENCE_API_KEY=$(belt secrets get INFSH_API_KEY 2>/dev/null || belt me --json | jq -r .api_key) belt app test --input input.json
-```
+If you need to chain multiple apps together, use a flow instead (`/flowify`). Apps don't call other apps — that's what flows are for.
 
 **For upstream API costs**, use `RawMeta(cost=cents)` in output_meta:
 ```python
