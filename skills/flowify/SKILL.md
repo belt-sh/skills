@@ -94,12 +94,19 @@ belt flow edit node set-input <flow-id> <node-name> <key> --from input:<field-na
 
 #### 6. Set flow input schema
 
-Define what the caller passes in:
+Define what the caller passes in using `--field` shorthand (repeatable):
 ```bash
-belt flow edit set-schema <flow-id> --input '{"type":"object","properties":{"text":{"type":"string","description":"Plain text to process"}},"required":["text"]}'
+belt flow edit set-schema <flow-id> --field "text:string:required:Plain text to process" --field "voice_id:string"
 ```
 
-Set output schema too if needed:
+Format: `name:type[:required[:description]]`
+
+Or use raw JSON schema with `--input`:
+```bash
+belt flow edit set-schema <flow-id> --input '{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}'
+```
+
+Set output schema with `--output`:
 ```bash
 belt flow edit set-schema <flow-id> --output '{"type":"object","properties":{"audio":{"type":"string"}}}'
 ```
@@ -165,7 +172,7 @@ belt flow edit node set-input <fid> tts model eleven_v3
 belt flow edit node set-input <fid> tts voice_id "p14E9FuOqbWvwJH0YFio"
 
 # Set flow input/output
-belt flow edit set-schema <fid> --input '{"type":"object","properties":{"text":{"type":"string","description":"Text to speak"}},"required":["text"]}'
+belt flow edit set-schema <fid> --field "text:string:required:Text to speak"
 belt flow edit output set <fid> audio --from tts:audio
 
 # Verify
