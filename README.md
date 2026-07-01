@@ -39,6 +39,8 @@ belt plugin init codex    # or cursor, gemini, windsurf
 | `/apps` | Search and run 250+ AI apps |
 | `/suggest` | Unified search across skills, knowledge, and apps |
 | `/agentify` | Build and deploy a custom AI agent with tools |
+| `/appify` | Build and deploy an inference.sh app |
+| `/flowify` | Chain apps into a multi-step flow pipeline |
 
 ## Hooks (automatic)
 
