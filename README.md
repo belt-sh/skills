@@ -1,6 +1,6 @@
 # belt-sh/skills
 
-Plugin for [belt](https://belt.sh) — the cloud platform for AI agents. Works with Claude Code and OpenAI Codex.
+Plugin for [belt](https://belt.sh) — the cloud platform for AI agents. Works with Claude Code, Codex, Cursor, Gemini CLI, Pi, OpenCode, and Windsurf.
 
 ## Install
 
@@ -21,11 +21,28 @@ codex plugin install belt
 
 Then run `/hooks` in Codex to review and trust belt hooks.
 
+### Pi
+
+```bash
+belt plugin init pi
+```
+
+### OpenCode
+
+```bash
+belt plugin init opencode
+```
+
 ### Any agent (via belt CLI)
 
 ```bash
-belt plugin init claude   # Claude Code
-belt plugin init codex    # or cursor, gemini, windsurf
+belt plugin init claude     # Claude Code
+belt plugin init codex      # OpenAI Codex
+belt plugin init cursor     # Cursor
+belt plugin init gemini     # Gemini CLI
+belt plugin init pi         # Pi
+belt plugin init opencode   # OpenCode
+belt plugin init windsurf   # Windsurf
 ```
 
 ## What you get
