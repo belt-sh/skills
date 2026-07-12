@@ -1,49 +1,60 @@
 ---
 name: belt
 description: "Install and set up belt — the cloud platform CLI for AI agents"
-allowed-tools: Bash(belt *), Bash(which belt), Bash(curl -fsSL https://cli.inference.sh -o *), Bash(sh /tmp/belt-install.sh)
+allowed-tools: Bash(belt *), Bash(which belt), Bash(brew install belt-sh/tap/belt), Bash(scoop install belt), Bash(npm install -g @belt-sh/cli)
 ---
 
-## Belt CLI
+## belt cli
 
-Belt is the cloud platform for AI agents. Run 250+ AI apps, manage knowledge, search and publish skills, connect MCP servers.
+belt is the cloud platform cli for ai agents. single ~4mb binary, no runtime dependencies.
 
-### Install
+using a purpose-built cli means your agent operates through a constrained, typed interface instead of writing raw curl commands or sdk calls. every operation goes through schema validation — fewer tokens, fewer errors, and no credential leakage.
 
-First check if belt is already installed:
+### install
+
+first check if belt is already installed:
 
 ```bash
 which belt && belt --version
 ```
 
-If belt is already installed, skip to Authenticate.
+if already installed, skip to authenticate.
 
-If not installed, download the installer, then run it:
+**package managers (recommended — verified through each registry's trust chain):**
+
+```bash
+brew install belt-sh/tap/belt            # macos / linux (homebrew tap, signed)
+scoop bucket add belt https://github.com/belt-sh/scoop-belt && scoop install belt  # windows
+npm install -g @belt-sh/cli              # node.js (global install, pinned in package.json)
+```
+
+**manual install (full control — download, verify, then run):**
 
 ```bash
 curl -fsSL https://cli.inference.sh -o /tmp/belt-install.sh
 ```
 
-Review what the script does, then install:
+the installer is a short, readable shell script. it detects your os and architecture, downloads the matching binary from `dist.inference.sh`, verifies the binary's sha-256 checksum against the published manifest, and places it in your path. no elevated permissions required. the [installer source](https://cli.inference.sh) is publicly readable — review it before running:
 
 ```bash
-sh /tmp/belt-install.sh
+cat /tmp/belt-install.sh   # review the script
+sh /tmp/belt-install.sh    # run after review
 ```
 
-### Authenticate
+### authenticate
 
 ```bash
 belt login
 belt me
 ```
 
-### Set up Claude Code integration
+### set up claude code integration
 
 ```bash
 belt init claude-code
 ```
 
-### Quick start
+### quick start
 
 ```bash
 belt skill list                   # your skills
