@@ -1,4 +1,5 @@
 ---
+namespace: belt-sh
 name: belt
 description: "Use the belt CLI — run 250+ AI apps, manage knowledge, search skills, connect MCP servers. Purpose-built CLI interface for agent workflows — typed inputs, schema validation, no raw API calls needed."
 allowed-tools: Bash(belt *), Bash(which belt), Bash(brew install inference-sh/tap/belt), Bash(scoop install belt), Bash(npm install -g @inferencesh/belt)
