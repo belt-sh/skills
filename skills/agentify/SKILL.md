@@ -62,7 +62,7 @@ From the conversation analysis or user input, pin down:
 - **What does this agent do?** One sentence.
 - **What inputs does it need?** These become context variables.
 - **What tools does it need?** MCP servers, API calls, or built-in tools.
-- **What model should power it?** Default: `openrouter/claude-sonnet-46`. Use `openrouter/claude-haiku-45` for simple/high-volume agents.
+- **What model should power it?** List the catalogue first — `belt app store search claude` (or gemini, glm, kimi) — because refs go stale fast and are not guessable: both `anthropic/claude-haiku-4-5` and `anthropic/claude-haiku-45` exist, and `anthropic/*` is the direct API while `openrouter/*` routes through OpenRouter. As of 2026-07: `anthropic/claude-sonnet-5` is a good default (near-Opus, 1M context), `anthropic/claude-opus-4-8` for the hardest reasoning, `anthropic/claude-haiku-4-5` for simple/high-volume agents. Use `belt app get <ref>` for context window, pricing and the input schema.
 
 #### 2. Check for existing agents
 
@@ -116,7 +116,7 @@ No connection step needed — call tools are just HTTP requests defined in the Y
 name: my-agent
 description: what it does in one line
 core_app:
-  ref: openrouter/claude-sonnet-46
+  ref: anthropic/claude-sonnet-5
 system_prompt: |
   You are a helpful assistant that does X.
   When the user asks Y, do Z.
@@ -128,7 +128,7 @@ system_prompt: |
 name: pr-reviewer
 description: reviews pull requests
 core_app:
-  ref: openrouter/claude-sonnet-46
+  ref: anthropic/claude-sonnet-5
 system_prompt: |
   You review pull requests. The user provides a PR URL
   and you analyze the changes and provide feedback.
@@ -147,7 +147,7 @@ context:
 name: todoist-bot
 description: manages todoist tasks
 core_app:
-  ref: openrouter/claude-sonnet-46
+  ref: anthropic/claude-sonnet-5
 system_prompt: |
   You manage Todoist tasks. Use find-projects to list projects.
 tools:
@@ -165,7 +165,7 @@ tools:
 name: status-checker
 description: checks service health
 core_app:
-  ref: openrouter/claude-haiku-45
+  ref: anthropic/claude-haiku-4-5
 system_prompt: |
   You check service status. Use the health_check tool
   to verify the service at the given URL is responding.
@@ -208,7 +208,7 @@ tools:
 name: pricing-agent
 description: configures app pricing
 core_app:
-  ref: openrouter/claude-sonnet-45
+  ref: anthropic/claude-sonnet-5
 skills:
   - name: cel-pricing
     skill_id: infsh/cel-pricing
@@ -342,7 +342,7 @@ For simple agents without custom API tools:
 
 ```bash
 belt agent create my-agent "description" \
-  --model openrouter/claude-sonnet-46 \
+  --model anthropic/claude-sonnet-5 \
   --prompt "You are a helpful assistant that..." \
   --mcp <integration_id>:<tool_name>
 ```
