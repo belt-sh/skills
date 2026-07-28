@@ -62,7 +62,7 @@ From the conversation analysis or user input, pin down:
 - **What does this agent do?** One sentence.
 - **What inputs does it need?** These become context variables.
 - **What tools does it need?** MCP servers, API calls, or built-in tools.
-- **What model should power it?** List the catalogue first — `belt app store search claude` (or gemini, glm, kimi) — refs go stale fast and are not guessable: both `anthropic/claude-haiku-4-5` and `anthropic/claude-haiku-45` exist, and version suffixes vary between `-4-8` and `-46` styles. Use the provider's own namespace: `anthropic/*` and `google/*` are direct API apps, and reaching the same Claude model through `openrouter/*` just adds a third party. As of 2026-07: `anthropic/claude-sonnet-5` is a good default (near-Opus, 1M context), `anthropic/claude-opus-4-8` for the hardest reasoning, `anthropic/claude-haiku-4-5` for simple/high-volume agents. Reach for `openrouter/*` only where no first-party app exists — currently the open-weight families (GLM, Kimi, Qwen). `belt app get <ref>` shows context window, pricing and the input schema.
+- **What model should power it?** List the catalogue — `belt app store -c chat` (add `--new` for newest first, `-q claude` to filter, `belt app get <ref>` for context window and pricing). Do not work from a remembered ref: models ship faster than any written list stays true. Use the provider's own namespace — `anthropic/*` and `google/*` are direct API apps, and reaching the same Claude model through `openrouter/*` only adds a third party; OpenRouter is for the open-weight families (GLM, Kimi, Qwen) that have no first-party app. Refs are not guessable from the marketing name — `anthropic/claude-haiku-4-5` and `anthropic/claude-haiku-45` both exist, and suffixes vary between `-4-8` and `-46` styles, so copy the ref from the listing.
 
 #### 2. Check for existing agents
 
@@ -116,7 +116,7 @@ No connection step needed — call tools are just HTTP requests defined in the Y
 name: my-agent
 description: what it does in one line
 core_app:
-  ref: anthropic/claude-sonnet-5
+  ref: anthropic/claude-sonnet-5   # example only — list the store for current refs
 system_prompt: |
   You are a helpful assistant that does X.
   When the user asks Y, do Z.
