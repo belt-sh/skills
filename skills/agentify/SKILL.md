@@ -26,6 +26,8 @@ Turn a workflow, task, or idea into a deployed agent on belt. Agents get a model
 
 **MCP tools vs call tools**: MCP tools connect to external services via OAuth (Todoist, Linear, Slack). Call tools are direct HTTP requests to any API with bearer auth.
 
+**Client tools** (`type: client`) are declared by the agent but executed by the frontend — for acting on live UI state the server cannot see. See the client tools section below; the schema nesting there is easy to get wrong and fails silently.
+
 ### Process
 
 #### 0. Analyze the conversation first [MANDATORY]
@@ -219,6 +221,38 @@ internal_tools:
 
 Save to a file named `<agent-name>.yml`.
 
+**Agent with client tools** (executed by the frontend, not the server):
+
+Use these when the tool must act on live UI state — the open editor, the current
+selection, an unsaved form. The agent owns the schema; the browser owns the
+implementation.
+
+```yaml
+tools:
+  - name: replace_text
+    type: client
+    description: Finds an exact string in the open document and replaces it.
+    client:
+      input_schema:
+        type: object
+        properties:
+          find: {type: string, description: The exact text to find}
+          replace: {type: string, description: The replacement text}
+        required: [find, replace]
+```
+
+**The schema MUST be nested under `client:`.** Putting `input_schema` at the tool's
+top level is silently accepted by deploy and silently dropped — `AgentTool` has no
+such field. You get a tool the model can see and call but pass no arguments to, so
+it appears to run and does nothing. Tools that take no arguments keep working,
+which makes the failure present as "reads work, writes don't".
+
+The frontend supplies handlers keyed by tool name via `AgentChatProvider`'s
+`clientToolHandlers` map. This composes with `TemplateAgentConfig`, so the agent
+stays durable — system prompt, model and schemas in the registry — while its tools
+execute in the browser. Tool names become a contract across two repos: rename
+either side and you get a call nothing answers, with no error.
+
 #### 5. Deploy
 
 ```bash
@@ -244,6 +278,19 @@ belt agent run <namespace/agent-name> "test message" --context key=value
 - MCP tools don't return "integration not found" — if they do, the integration_id is wrong. Re-check with `belt integrations list --json`
 - Error cases are handled in the system prompt
 
+**Verify the schemas actually stored** — deploy accepts misplaced fields silently,
+so a tool can exist with no parameters at all. That failure is invisible from the
+outside: the agent calls the tool, the tool does nothing, and the model often
+reports success.
+
+```bash
+belt agent get <namespace/agent-name> --json \
+  | jq '.version.tools[] | {name, type, params: (.client.input_schema // .call.input_schema).properties | keys?}'
+```
+
+Any tool showing `null` params that should take arguments has a misplaced
+`input_schema`.
+
 If something is wrong, edit the YAML and redeploy:
 ```bash
 belt agent deploy ./<agent-name>.yml
@@ -251,10 +298,16 @@ belt agent deploy ./<agent-name>.yml
 
 #### 7. Iterate and share
 
-Pull the deployed config to see what the server stored:
+Pull the deployed config to keep editing it:
 ```bash
-belt agent pull <namespace/agent-name>
+belt agent pull <namespace/agent-name> --save ./<agent-name>.yml
 ```
+
+`pull` renders YAML from the stored agent — it is a *rendering*, not the stored
+state, and has historically omitted whole config blocks. Use `belt agent get
+--json` when you need to know what is actually stored. Before a pull → edit →
+deploy round trip, confirm the pulled YAML still contains every tool's config
+block, or redeploying will strip whatever pull failed to render.
 
 The agent is now callable:
 ```bash
