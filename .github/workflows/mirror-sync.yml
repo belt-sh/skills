@@ -1,0 +1,19 @@
+name: Mirror sync
+
+# plugins/belt/ is a hand-maintained copy of the top-level trees. Editing one
+# side without the other leaves the Claude Code plugin serving stale content
+# while the registry serves the new — a failure with no visible symptom unless
+# you happen to use both entry points.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify plugins/belt mirrors the source trees
+        run: ./.github/scripts/check-mirror.sh
