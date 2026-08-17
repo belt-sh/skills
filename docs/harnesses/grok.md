@@ -96,9 +96,13 @@ Tool events add `toolName`, `toolInput`.
 
 ### Exit code contract
 
-- `0` — allow, stdout → context
+- `0` — allow, stdout → context (Stop hooks only via `additionalContext`)
 - `2` — deny
 - Other — fail-open on timeout/crash
+
+### Context injection
+
+`UserPromptSubmit` is `Observe` gate kind — output is recorded but NOT injected into context. Only `Stop` and `SubagentStop` hooks support `additionalContext` injection via `hookSpecificOutput.additionalContext` JSON field in stdout.
 
 ## Skill system
 
@@ -137,11 +141,22 @@ grok -p "hello" --output-format json
 
 ### Headless mode
 
-`-p` flag for non-interactive/CI. `--output-format json` or `--output-format streaming-json`. Device-code login: `grok login --device-auth`.
+`-p`/`--single` flag for non-interactive/CI. `--output-format json` or `--output-format streaming-json`. Device-code login: `grok login --device-auth`.
+
+**`-p` mode does NOT fire hooks.** Confirmed from grok-build source — the hook dispatcher lives in the TUI/pager layer, not the agent layer. `headless.rs` uses ACP protocol directly without wiring up hooks. This is by design.
+
+### Testing hooks in CI
+
+Hooks only fire in TUI mode. Options for automated testing:
+- `tmux` wrapper: `tmux new-session -d -s test grok && tmux send-keys -t test "prompt" Enter`
+- `expect`/`pexpect` scripting
+- Docker with TTY: `docker run -t`
 
 ### Notes
 
 - Hook format nearly identical to Claude Code — minimal work to add
 - Plugin marketplace is open (GitHub-based) — could submit belt plugin
-- `AGENTS.md` + `CLAUDE.md` compat for rules is interesting — belt rules would work out of the box
-- 17 hook events, including unique `CwdChanged` and `InstructionsLoaded`
+- `AGENTS.md` + `CLAUDE.md` compat for rules — belt rules work out of the box
+- 15 hook events (`SubagentEnd` is alias of `SubagentStop`)
+- `UserPromptSubmit` is Observe-only — context injection only via Stop hooks
+- Source: [xai-org/grok-build](https://github.com/xai-org/grok-build), `crates/codegen/xai-grok-hooks/`
