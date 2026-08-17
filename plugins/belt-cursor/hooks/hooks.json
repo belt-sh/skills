@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "./bin/hook-session-start.sh",
+        "timeout": 60
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "./bin/hook-user-prompt.sh",
+        "timeout": 3
+      }
+    ],
+    "stop": [
+      {
+        "command": "./bin/hook-stop.sh",
+        "timeout": 60
+      }
+    ],
+    "preCompact": [
+      {
+        "command": "./bin/hook-pre-compact.sh",
+        "timeout": 60
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "./bin/hook-session-end.sh",
+        "timeout": 600
+      }
+    ]
+  }
+}

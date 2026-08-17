@@ -1,0 +1,88 @@
+services:
+  test-codex:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-codex.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-grok:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-grok.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-kimi:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-kimi.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-copilot:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-copilot.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-droid:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-droid.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-opencode:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-opencode.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-pi:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-pi.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-qoder:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-qoder.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-hermes:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-hermes.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-mastracode:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-mastracode.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
+
+  test-kilo:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-kilo.Dockerfile
+    environment:
+      - OPENROUTER_KEY
+    network_mode: host
