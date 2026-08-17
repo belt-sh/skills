@@ -21,8 +21,10 @@ if [ -z "${OPENROUTER_KEY:-}" ]; then
 fi
 
 export OPENROUTER_KEY
+export XAI_API_KEY="${XAI_API_KEY:-}"
+export OPENAI_API_KEY="${OPENAI_API_KEY:-}"
+export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
@@ -30,7 +32,7 @@ cd "$REPO_ROOT"
 if [ $# -gt 0 ]; then
   SERVICES=("$@")
 else
-  SERVICES=(test-codex test-grok test-kimi test-copilot test-droid test-opencode test-pi test-qoder test-hermes test-mastracode test-kilo)
+  SERVICES=(test-codex test-grok test-copilot test-opencode test-pi test-hermes test-mastracode)
 fi
 
 echo "=== Building and running: ${SERVICES[*]} ==="

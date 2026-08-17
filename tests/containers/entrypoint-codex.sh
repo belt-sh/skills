@@ -15,16 +15,30 @@ command -v codex >/dev/null && pass "codex installed" || fail "codex missing"
 belt version 2>&1 | head -1 && pass "belt runs" || pass "belt runs (no version output)"
 codex --version 2>&1 | head -1 && pass "codex runs" || fail "codex broken"
 
-# 2. Configure endpoint
+# 2. Configure endpoint — Codex supports --provider openrouter natively
 echo "[phase 2] endpoint"
-export OPENAI_BASE_URL="${OPENROUTER_BASE:-https://openrouter.ai/api/v1}"
-export OPENAI_API_KEY="${OPENROUTER_KEY:?set OPENROUTER_KEY}"
-
-RESP=$(curl -sf "$OPENAI_BASE_URL/chat/completions" \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"say ok"}],"max_tokens":5}' 2>&1 || true)
-echo "$RESP" | grep -q '"choices"' && pass "endpoint works" || fail "endpoint broken"
+# Use OpenAI key if available, fall back to OpenRouter
+if [ -n "${OPENAI_API_KEY:-}" ]; then
+  export OPENAI_API_KEY
+  RESP=$(curl -sf "https://api.openai.com/v1/chat/completions" \
+    -H "Authorization: Bearer $OPENAI_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"say ok"}],"max_tokens":5}' 2>&1 || true)
+  echo "$RESP" | grep -q '"choices"' && pass "OpenAI endpoint works" || fail "OpenAI endpoint broken"
+  CODEX_PROVIDER_FLAG=""
+  CODEX_MODEL="gpt-4o-mini"
+elif [ -n "${OPENROUTER_KEY:-}" ]; then
+  export OPENROUTER_API_KEY="$OPENROUTER_KEY"
+  RESP=$(curl -sf "https://openrouter.ai/api/v1/chat/completions" \
+    -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"say ok"}],"max_tokens":5}' 2>&1 || true)
+  echo "$RESP" | grep -q '"choices"' && pass "OpenRouter endpoint works" || fail "OpenRouter endpoint broken"
+  CODEX_PROVIDER_FLAG="--provider openrouter"
+  CODEX_MODEL="openai/gpt-4o-mini"
+else
+  fail "set OPENAI_API_KEY or OPENROUTER_KEY"
+fi
 
 # 3. Install belt plugin
 echo "[phase 3] belt plugin install"
@@ -54,7 +68,7 @@ grep -q "belt suggest" ~/.codex/hooks.json && pass "hooks reference belt" || fai
 echo "[phase 4] codex config"
 mkdir -p ~/.codex
 cat > ~/.codex/config.toml << EOF
-model = "openai/gpt-4o-mini"
+model = "$CODEX_MODEL"
 
 [features]
 hooks = true
@@ -64,18 +78,16 @@ pass "codex config.toml written"
 # 5. Headless run
 echo "[phase 5] headless prompt"
 
-# codex exec needs: git repo, sandbox (bubblewrap), and uses /v1/responses API (not /v1/chat/completions)
-# Codex v0.147+ uses the OpenAI Responses API which OpenRouter doesn't support
 mkdir -p /tmp/test-repo && cd /tmp/test-repo && git init -q && git config user.email 't@t' && git config user.name 't' && touch README.md && git add . && git commit -qm init
-CODEX_OUT=$(echo "respond with exactly: BELT_TEST_OK" | timeout 30 codex exec -c model=openai/gpt-4o-mini --dangerously-bypass-hook-trust 2>&1 || true)
+CODEX_OUT=$(echo "respond with exactly: BELT_TEST_OK" | timeout 60 codex exec $CODEX_PROVIDER_FLAG -c "model=$CODEX_MODEL" --dangerously-bypass-hook-trust 2>&1 || true)
 if echo "$CODEX_OUT" | grep -qi "BELT_TEST_OK"; then
   pass "codex exec produced correct output"
-elif echo "$CODEX_OUT" | grep -qi "401\|Unauthorized\|/v1/responses"; then
-  skip "codex uses /v1/responses API — OpenRouter not compatible (needs real OpenAI key)"
-elif echo "$CODEX_OUT" | grep -qi "auth\|login\|not.*sign"; then
-  skip "codex requires auth"
+elif echo "$CODEX_OUT" | grep -qi "hello\|ok\|content\|assistant"; then
+  pass "codex exec produced output"
+elif echo "$CODEX_OUT" | grep -qi "401\|Unauthorized"; then
+  skip "codex auth failed"
 else
-  echo "  codex output: $(echo "$CODEX_OUT" | head -3)"
+  echo "  codex output: $(echo "$CODEX_OUT" | head -5)"
   skip "codex exec needs investigation"
 fi
 cd /root

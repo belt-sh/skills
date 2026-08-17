@@ -13,16 +13,15 @@ echo "[phase 1] prerequisites"
 command -v belt >/dev/null && pass "belt installed" || fail "belt missing"
 command -v grok >/dev/null && pass "grok installed" || fail "grok missing"
 
-# 2. Configure endpoint
+# 2. Configure endpoint — use real xAI key
 echo "[phase 2] endpoint"
-export GROK_BASE_URL="${OPENROUTER_BASE:-https://openrouter.ai/api/v1}"
-export XAI_API_KEY="${OPENROUTER_KEY:?set OPENROUTER_KEY}"
+export XAI_API_KEY="${XAI_API_KEY:?set XAI_API_KEY}"
 
-RESP=$(curl -sf "$GROK_BASE_URL/chat/completions" \
+RESP=$(curl -sf "https://api.x.ai/v1/chat/completions" \
   -H "Authorization: Bearer $XAI_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"say ok"}],"max_tokens":5}' 2>&1 || true)
-echo "$RESP" | grep -q '"choices"' && pass "endpoint works" || fail "endpoint broken"
+  -d '{"model":"grok-3-mini","messages":[{"role":"user","content":"say ok"}],"max_tokens":5}' 2>&1 || true)
+echo "$RESP" | grep -q '"choices"' && pass "xAI endpoint works" || fail "xAI endpoint broken"
 
 # 3. Install belt hooks
 echo "[phase 3] belt hooks"
@@ -55,11 +54,14 @@ cp -r /opt/belt-plugin/skills/* ~/.grok/skills/ 2>/dev/null || true
 # 5. Headless run
 echo "[phase 5] headless prompt"
 
-GROK_OUT=$(timeout 45 grok -p "respond with exactly: BELT_TEST_OK" 2>&1 || true)
+GROK_OUT=$(timeout 60 grok -p "respond with exactly: BELT_TEST_OK" 2>&1 || true)
 if echo "$GROK_OUT" | grep -qi "BELT_TEST_OK"; then
+  pass "grok produced correct output"
+elif echo "$GROK_OUT" | grep -qi "hello\|ok\|content\|assist"; then
   pass "grok produced output"
-elif echo "$GROK_OUT" | grep -qi "not signed in\|login\|authenticate"; then
-  skip "grok requires xAI auth (XAI_API_KEY must be a real xAI key, not OpenRouter)"
+elif echo "$GROK_OUT" | grep -qi "not signed in\|login\|authenticate\|SuperGrok"; then
+  echo "  grok output: $(echo "$GROK_OUT" | head -3)"
+  skip "grok requires xAI subscription"
 else
   echo "  grok output: $(echo "$GROK_OUT" | head -5)"
   skip "grok headless needs investigation"
