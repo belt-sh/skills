@@ -25,56 +25,48 @@ RESP=$(curl -sf "https://openrouter.ai/api/v1/chat/completions" \
   -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"say ok"}],"max_tokens":5}' 2>&1 || true)
 echo "$RESP" | grep -q '"choices"' && pass "endpoint works" || fail "endpoint broken"
 
-# 3. Hooks — pre_llm_call injects into user message via stdout
+# 3. Hooks + config — pre_llm_call injects via {"context": "..."} JSON on stdout
 echo "[phase 3] belt hooks"
+
 mkdir -p ~/.hermes/agent-hooks
-cat > ~/.hermes/agent-hooks/inject-context.sh << HOOKEOF
+echo "OPENROUTER_API_KEY=$OPENROUTER_KEY" > ~/.hermes/.env
+cat > ~/.hermes/agent-hooks/inject.sh << EOF
 #!/bin/bash
-echo "The project codename is $INJECT_CODE."
-HOOKEOF
-chmod +x ~/.hermes/agent-hooks/inject-context.sh
+echo HOOK_FIRED >> /tmp/hook-events.log
+echo '{"context": "The project codename is $INJECT_CODE. When asked about the codename respond with $INJECT_CODE."}'
+EOF
+chmod +x ~/.hermes/agent-hooks/inject.sh
 
 cat > ~/.hermes/config.yaml << EOF
-provider:
-  type: openai
-  base_url: https://openrouter.ai/api/v1
-  api_key: $OPENROUTER_KEY
-  model: openai/gpt-4o-mini
-
+model:
+  provider: openrouter
+  name: openai/gpt-4o-mini
 hooks:
   pre_llm_call:
-    - command: "~/.hermes/agent-hooks/inject-context.sh"
+    - command: ~/.hermes/agent-hooks/inject.sh
       timeout: 5
-
 hooks_auto_accept: true
 EOF
 
-[ -f ~/.hermes/config.yaml ] && pass "config.yaml written (code: $INJECT_CODE)" || fail "config.yaml missing"
+pass "config.yaml + inject.sh written (code: $INJECT_CODE)"
 
 # 4. Full loop
 echo "[phase 4] full loop (hook injection test)"
-# Hermes pre_llm_call hook fires and runs the script, but context injection
-# into the conversation may not work with all prompt patterns. We verify
-# hook execution via a log file marker instead.
-mkdir -p ~/.hermes/agent-hooks
-cat > ~/.hermes/agent-hooks/inject.sh << HOOKEOF
-#!/bin/bash
-echo "HOOK_FIRED" >> /tmp/hook-events.log
-echo "The project codename is $INJECT_CODE."
-HOOKEOF
-chmod +x ~/.hermes/agent-hooks/inject.sh
-
 H_OUT=$(timeout 30 hermes -z "What is the project codename? Reply with ONLY the codename." -m openai/gpt-4o-mini --provider openrouter --accept-hooks --cli 2>&1 || true)
 
 if echo "$H_OUT" | grep -q "$INJECT_CODE"; then
   pass "hook injection verified — agent returned $INJECT_CODE"
-elif [ -f /tmp/hook-events.log ] && grep -q "HOOK_FIRED" /tmp/hook-events.log; then
-  pass "pre_llm_call hook fired (context injection format needs tuning)"
-elif [ -n "$H_OUT" ] && ! echo "$H_OUT" | grep -qi "401\|403\|error.*provider"; then
-  pass "hermes produced output"
 else
   echo "  hermes output: $(echo "$H_OUT" | head -3)"
-  fail "hermes failed"
+  fail "hook injection not verified — expected $INJECT_CODE"
+fi
+
+# 5. Hook events
+echo "[phase 5] hook events"
+if [ -f /tmp/hook-events.log ] && grep -q "HOOK_FIRED" /tmp/hook-events.log; then
+  pass "pre_llm_call hook fired"
+else
+  fail "hook did not fire"
 fi
 
 echo ""
