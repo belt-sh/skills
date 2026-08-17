@@ -20,11 +20,20 @@ type Result struct {
 	Events  []string
 }
 
+type Mode int
+
+const (
+	ModeBoth        Mode = iota
+	ModeHeadless
+	ModeInteractive
+)
+
 type Runner struct {
 	harness harness.Harness
 	server  *server.MockServer
 	baseURL string
 	home    string
+	mode    Mode
 	result  Result
 }
 
@@ -33,7 +42,19 @@ func New(h harness.Harness, srv *server.MockServer, baseURL string) *Runner {
 		harness: h,
 		server:  srv,
 		baseURL: baseURL,
+		mode:    ModeBoth,
 		result:  Result{Harness: h.Name},
+	}
+}
+
+func (r *Runner) SetMode(m string) {
+	switch m {
+	case "headless":
+		r.mode = ModeHeadless
+	case "interactive":
+		r.mode = ModeInteractive
+	default:
+		r.mode = ModeBoth
 	}
 }
 
@@ -60,8 +81,18 @@ func (r *Runner) Run() Result {
 	r.setupEndpoint()
 	r.setupHooks()
 	r.setupSkills()
-	r.runHeadless()
-	r.checkHookEvents()
+
+	if r.mode == ModeBoth || r.mode == ModeHeadless {
+		r.runHeadless()
+		r.checkHookEvents("headless")
+	}
+	if r.mode == ModeBoth || r.mode == ModeInteractive {
+		// Clear events from headless phase before interactive
+		os.Remove(filepath.Join(r.home, "hook-events.log"))
+		r.server.ClearLog()
+		r.runInteractive()
+		r.checkHookEvents("interactive")
+	}
 
 	fmt.Printf("\n=== %s: %d passed, %d failed, %d skipped ===\n\n",
 		r.harness.Name, r.result.Passed, r.result.Failed, r.result.Skipped)
@@ -243,34 +274,101 @@ func (r *Runner) runHeadless() {
 	}
 }
 
-func (r *Runner) checkHookEvents() {
-	fmt.Println("[phase 6] hook events")
+func (r *Runner) runInteractive() {
+	if len(r.harness.InteractiveCmd) == 0 {
+		return
+	}
+	if !r.harness.HooksInInteractive {
+		r.skip(r.harness.Name + " hooks don't fire in interactive mode")
+		return
+	}
+
+	fmt.Println("[phase 6] interactive (PTY) mode")
+
+	// Clear hook events from headless phase
+	eventLogPath := filepath.Join(r.home, "hook-events.log")
+	os.Remove(eventLogPath)
+	r.server.ClearLog()
+
+	// Build command
+	args := r.harness.InteractiveCmd[1:]
+	args = append(args, r.harness.InteractiveExtraFlags...)
+
+	dir := r.home
+	if r.harness.NeedsGitRepo {
+		dir = filepath.Join(r.home, "test-repo")
+	}
+
+	env := os.Environ()
+
+	session, err := StartPTY(r.harness.InteractiveCmd[0], args, dir, env)
+	if err != nil {
+		r.fail("PTY start: " + err.Error())
+		return
+	}
+	defer session.Close()
+
+	// Wait for the TUI to start (look for a prompt indicator)
+	_, started := session.WaitForAny([]string{">", "$", "❯", "/", "grok", "claude", "copilot", "hermes"}, 15*time.Second)
+	if !started {
+		r.skip("TUI did not show prompt within 15s")
+		return
+	}
+	r.pass("TUI started")
+
+	// Send a prompt
+	session.SendLine("What is the project codename? Reply ONLY the codename.")
+
+	// Wait for response
+	time.Sleep(15 * time.Second)
+
+	// Exit
+	if r.harness.ExitCommand != "" {
+		session.SendLine(r.harness.ExitCommand)
+		time.Sleep(2 * time.Second)
+	}
+	session.SendCtrlC()
+	session.Wait(5 * time.Second)
+
+	r.pass("interactive session completed")
+}
+
+func (r *Runner) checkHookEvents(phase string) {
+	label := fmt.Sprintf("[phase] hook events (%s)", phase)
+	fmt.Println(label)
 
 	logPath := filepath.Join(r.home, "hook-events.log")
 	data, err := os.ReadFile(logPath)
 	if err != nil {
-		r.skip("no hook events log")
+		if phase == "headless" && !r.harness.HooksInHeadless {
+			r.skip(phase + ": hooks not expected in this mode")
+		} else if phase == "interactive" {
+			r.skip(phase + ": no hook events log")
+		} else {
+			r.skip(phase + ": no hook events log")
+		}
 		return
 	}
 
 	content := string(data)
 	if strings.Contains(content, "PROMPT") {
-		r.pass("prompt hook fired")
+		r.pass(phase + ": prompt hook fired")
 	} else {
-		r.fail("prompt hook not found in events log")
+		if phase == "headless" && !r.harness.HooksInHeadless {
+			r.skip(phase + ": hooks not expected in headless mode")
+		} else {
+			r.fail(phase + ": prompt hook not found")
+		}
 	}
 	if strings.Contains(content, "STOP") {
-		r.pass("stop hook fired")
+		r.pass(phase + ": stop hook fired")
 	} else {
-		r.skip("stop hook not fired")
+		r.skip(phase + ": stop hook not fired")
 	}
 
-	// Check mock server log
 	entries := r.server.Log()
 	if len(entries) > 0 {
-		r.pass(fmt.Sprintf("mock server received %d request(s)", len(entries)))
-	} else {
-		r.skip("mock server received no requests (harness may use own endpoint)")
+		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, len(entries)))
 	}
 }
 

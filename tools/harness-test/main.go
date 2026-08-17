@@ -14,6 +14,7 @@ import (
 func main() {
 	var (
 		harnessName = flag.String("harness", "", "harness to test (or 'all')")
+		mode        = flag.String("mode", "both", "test mode: headless, interactive, or both")
 		listFlag    = flag.Bool("list", false, "list available harnesses")
 		serverOnly  = flag.Bool("server", false, "run mock server only (no tests)")
 		port        = flag.Int("port", 0, "mock server port (0 = random)")
@@ -97,6 +98,7 @@ func main() {
 		h := harness.All[name]
 		srv.ClearLog()
 		r := runner.New(h, srv, baseURL)
+		r.SetMode(*mode)
 		result := r.Run()
 		totalPassed += result.Passed
 		totalFailed += result.Failed

@@ -54,11 +54,19 @@ type Harness struct {
 	// Skills
 	SkillsDir string // where SKILL.md files go (relative to $HOME)
 
-	// Headless
-	HeadlessCmd   []string // command to run a single prompt headlessly
-	NeedsGitRepo  bool     // must be run inside a git repo
-	NeedsNonRoot  bool     // refuses to run as root
-	HooksInHeadless bool   // whether hooks fire in headless mode
+	// Headless (-p) mode
+	HeadlessCmd     []string // command to run a single prompt headlessly
+	HeadlessExtraFlags []string // extra flags for headless mode
+	NeedsGitRepo    bool     // must be run inside a git repo
+	NeedsNonRoot    bool     // refuses to run as root
+	HooksInHeadless bool     // whether hooks fire in headless mode
+
+	// Interactive (PTY/TUI) mode
+	InteractiveCmd  []string // command to start interactive session
+	InteractiveExtraFlags []string
+	ExitCommand     string   // slash command or keystroke to exit (e.g. "/exit", "Ctrl+C")
+	HooksInInteractive bool // whether hooks fire in interactive mode (usually true)
+	NeedsTrustSetup bool    // needs pre-trust config for hooks to fire
 
 	// Context injection
 	InjectionMethod string // how hook output reaches the agent context
