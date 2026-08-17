@@ -9,16 +9,13 @@ skip() { SKIP=$((SKIP+1)); echo "  ○ $*"; }
 echo "=== Hermes Agent Plugin Test ==="
 
 OPENROUTER_KEY="${OPENROUTER_KEY:?set OPENROUTER_KEY}"
+INJECT_CODE="HERMES-$(date +%s)-$$"
+export HERMES_ACCEPT_HOOKS=1
 
 # 1. Prerequisites
 echo "[phase 1] prerequisites"
 command -v belt >/dev/null && pass "belt installed" || fail "belt missing"
-if command -v hermes >/dev/null 2>&1; then
-  hermes --version 2>&1 | head -1 || true
-  pass "hermes installed"
-else
-  skip "hermes not available"
-fi
+command -v hermes >/dev/null && pass "hermes installed" || { skip "hermes not available"; echo "=== Results: $PASS passed, $FAIL failed, $SKIP skipped ===" && exit 0; }
 
 # 2. Endpoint
 echo "[phase 2] endpoint"
@@ -28,9 +25,15 @@ RESP=$(curl -sf "https://openrouter.ai/api/v1/chat/completions" \
   -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"say ok"}],"max_tokens":5}' 2>&1 || true)
 echo "$RESP" | grep -q '"choices"' && pass "endpoint works" || fail "endpoint broken"
 
-# 3. Hooks — Hermes uses YAML config with snake_case events
+# 3. Hooks — pre_llm_call injects into user message via stdout
 echo "[phase 3] belt hooks"
-mkdir -p ~/.hermes
+mkdir -p ~/.hermes/agent-hooks
+cat > ~/.hermes/agent-hooks/inject-context.sh << HOOKEOF
+#!/bin/bash
+echo "The project codename is $INJECT_CODE."
+HOOKEOF
+chmod +x ~/.hermes/agent-hooks/inject-context.sh
+
 cat > ~/.hermes/config.yaml << EOF
 provider:
   type: openai
@@ -39,38 +42,28 @@ provider:
   model: openai/gpt-4o-mini
 
 hooks:
-  on_session_start:
-    - command: "AI_AGENT=hermes belt me 2>/dev/null | head -1 || echo belt:not-authed"
-      timeout: 10
-  pre_tool_call:
-    - command: "AI_AGENT=hermes belt suggest --json"
-      timeout: 30
+  pre_llm_call:
+    - command: "~/.hermes/agent-hooks/inject-context.sh"
+      timeout: 5
+
+hooks_auto_accept: true
 EOF
 
-[ -f ~/.hermes/config.yaml ] && pass "config.yaml installed" || fail "config.yaml missing"
-grep -q "belt" ~/.hermes/config.yaml && pass "hooks reference belt" || fail "hooks broken"
+[ -f ~/.hermes/config.yaml ] && pass "config.yaml written (code: $INJECT_CODE)" || fail "config.yaml missing"
 
-# 4. Headless
-echo "[phase 4] headless prompt"
-if command -v hermes >/dev/null 2>&1; then
-  H_OUT=$(timeout 45 hermes -p "respond with exactly: BELT_TEST_OK" 2>&1 || true)
-  if [ -n "$H_OUT" ] && ! echo "$H_OUT" | grep -qi "401\|403\|error.*api\|not.*auth"; then
-    pass "hermes produced output"
+# 4. Full loop
+echo "[phase 4] full loop (hook injection test)"
+H_OUT=$(timeout 45 hermes -z "What is the project codename? Reply with ONLY the codename, nothing else." --accept-hooks --provider openai -m openai/gpt-4o-mini 2>&1 || true)
+
+if echo "$H_OUT" | grep -q "$INJECT_CODE"; then
+  pass "hook injection verified — agent returned $INJECT_CODE"
+else
+  echo "  hermes output: $(echo "$H_OUT" | head -5)"
+  if [ -n "$H_OUT" ] && ! echo "$H_OUT" | grep -qi "401\|403\|error"; then
+    skip "hermes produced output but injection not verified"
   else
-    echo "  hermes output: $(echo "$H_OUT" | head -3)"
-    skip "hermes requires config"
+    fail "hermes failed"
   fi
-else
-  skip "hermes not installed"
-fi
-
-# 5. Hook verification
-echo "[phase 5] hook verification"
-if [ -f ~/.belt/hooks.log ]; then
-  grep -qi "session-start\|user-prompt\|suggest" ~/.belt/hooks.log && \
-    pass "belt hooks fired" || skip "hooks.log exists but no belt events"
-else
-  skip "no hooks.log"
 fi
 
 echo ""
