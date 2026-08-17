@@ -71,7 +71,7 @@ var All = map[string]Harness{
 	"grok": {
 		Name: "grok", Binary: "grok",
 		Install:  []string{"curl -fsSL https://x.ai/cli/install.sh | bash"},
-		APIFormat: OpenAI, EndpointEnvVar: "GROK_BASE_URL", APIKeyEnvVar: "XAI_API_KEY",
+		APIFormat: OpenAI, EndpointEnvVar: "GROK_CLI_CHAT_PROXY_BASE_URL", APIKeyEnvVar: "XAI_API_KEY",
 		DefaultModel: "grok-3-mini",
 		HookFormat: JSONNested, EventCase: PascalCase,
 		HookConfigDir: ".grok/hooks",

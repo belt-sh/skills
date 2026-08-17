@@ -283,12 +283,50 @@ hooks = true
 		os.Setenv("COPILOT_MODEL", r.harness.DefaultModel)
 
 	case "claude":
-		// Claude needs settings.json with hooks (written in setupHooks)
-		// and permissions
 		claudeDir := filepath.Join(r.home, ".claude")
 		os.MkdirAll(claudeDir, 0755)
 		settings := `{"permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]}}`
 		os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(settings), 0644)
+
+	case "grok":
+		// Grok validates auth before doing anything. Seed a fake auth.json
+		// (same approach as xai-grok-pager-pty-harness/src/flows.rs)
+		grokDir := filepath.Join(r.home, ".grok")
+		os.MkdirAll(grokDir, 0755)
+		auth := fmt.Sprintf(`{
+  "https://auth.x.ai::b1a00492-073a-47ea-816f-4c329264a828": {
+    "key": "mock-test-token",
+    "auth_mode": "oidc",
+    "create_time": "2026-01-01T00:00:00Z",
+    "user_id": "mock-user",
+    "email": "mock@test.invalid",
+    "expires_at": "2030-01-01T00:00:00Z",
+    "refresh_token": "mock-refresh-token",
+    "oidc_issuer": "https://auth.x.ai",
+    "oidc_client_id": "b1a00492-073a-47ea-816f-4c329264a828",
+    "coding_data_retention_opt_out": false
+  }
+}`)
+		os.WriteFile(filepath.Join(grokDir, "auth.json"), []byte(auth), 0644)
+
+		// Also trust the workspace folder
+		trust := fmt.Sprintf("[folders.\"%s\"]\ntrusted = true\ndecided_at = 1786997000\n",
+			filepath.Join(r.home, "test-repo"))
+		os.WriteFile(filepath.Join(grokDir, "trusted_folders.toml"), []byte(trust), 0644)
+
+		// Point ALL Grok endpoints at mock server (from grok-build TestSandbox)
+		for _, key := range []string{
+			"GROK_CLI_CHAT_PROXY_BASE_URL",
+			"GROK_XAI_API_BASE_URL",
+			"GROK_MODELS_BASE_URL",
+			"GROK_FEEDBACK_BASE_URL",
+			"GROK_TRACE_UPLOAD_URL",
+			"GROK_MANAGED_CONFIG_URL",
+			"GROK_CONVERSATIONS_BASE_URL",
+		} {
+			os.Setenv(key, r.baseURL)
+		}
+		os.Setenv("XAI_API_KEY", "mock-test-key")
 	}
 }
 

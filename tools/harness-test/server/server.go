@@ -48,6 +48,13 @@ func New() *MockServer {
 	// Model listing
 	mux.HandleFunc("GET /v1/models", s.handleModels)
 
+	// Grok-specific endpoints
+	mux.HandleFunc("GET /v1/user", s.handleUser)
+	mux.HandleFunc("GET /v1/settings", s.handleSettings)
+	mux.HandleFunc("GET /v1/privacy/coding-data-retention", s.handlePrivacy)
+	mux.HandleFunc("POST /sessions/{id}/data", s.handleSessionData)
+	mux.HandleFunc("PUT /sessions/{id}", s.handleSessionUpdate)
+
 	// Test utilities
 	mux.HandleFunc("GET /log", s.handleGetLog)
 	mux.HandleFunc("GET /log/count", s.handleLogCount)
@@ -327,6 +334,47 @@ func (s *MockServer) handleSetResponse(w http.ResponseWriter, r *http.Request) {
 		s.SetResponse(req.Text)
 	}
 	w.WriteHeader(204)
+}
+
+func (s *MockServer) handleUser(w http.ResponseWriter, r *http.Request) {
+	s.record(r, nil)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"userId": "mock-user",
+		"email":  "mock@test.invalid",
+	})
+}
+
+func (s *MockServer) handleSettings(w http.ResponseWriter, r *http.Request) {
+	s.record(r, nil)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"models": map[string]any{
+			"default": "mock-model",
+		},
+	})
+}
+
+func (s *MockServer) handlePrivacy(w http.ResponseWriter, r *http.Request) {
+	s.record(r, nil)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"opted_out": false,
+	})
+}
+
+func (s *MockServer) handleSessionData(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	s.record(r, body)
+	w.WriteHeader(200)
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func (s *MockServer) handleSessionUpdate(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	s.record(r, body)
+	w.WriteHeader(200)
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func mustJSON(v any) string {
