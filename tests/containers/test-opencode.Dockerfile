@@ -1,9 +1,13 @@
 FROM ubuntu:24.04
 
-RUN apt-get update && apt-get install -y curl git jq npm && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl git jq npm unzip && rm -rf /var/lib/apt/lists/*
 
 # Install belt
 RUN curl -fsSL https://cli.inference.sh | sh
+
+# Install Bun (required for OpenCode plugins)
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:$PATH"
 
 # Install OpenCode
 RUN npm install -g opencode-ai || \
