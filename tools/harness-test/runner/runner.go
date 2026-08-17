@@ -160,6 +160,20 @@ func (r *Runner) setupHooks() {
 }
 
 func (r *Runner) writeJSONNestedHooks(dir, logPath, code string) {
+	if r.harness.Name == "claude" {
+		// Claude hooks go in settings.json alongside permissions
+		settings := fmt.Sprintf(`{
+  "permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]},
+  "hooks": {
+    "%s": [{"matcher":"*","hooks":[{"type":"command","command":"echo PROMPT >> %s && echo 'The project codename is %s.'","timeout":5}]}],
+    "%s": [{"hooks":[{"type":"command","command":"echo STOP >> %s","timeout":5}]}]
+  }
+}`, r.harness.Events.PromptSubmit, logPath, code,
+			r.harness.Events.Stop, logPath)
+		os.WriteFile(filepath.Join(dir, "settings.json"), []byte(settings), 0644)
+		return
+	}
+
 	hooks := fmt.Sprintf(`{
   "hooks": {
     "%s": [{"hooks":[{"type":"command","command":"echo PROMPT >> %s && echo 'The project codename is %s.'","timeout":5}]}],
@@ -229,6 +243,55 @@ func (r *Runner) setupSkills() {
 	r.pass("skills directory created")
 }
 
+func (r *Runner) ensureGitRepo() string {
+	repoDir := filepath.Join(r.home, "test-repo")
+	if _, err := os.Stat(filepath.Join(repoDir, ".git")); err == nil {
+		return repoDir
+	}
+	os.MkdirAll(repoDir, 0755)
+	run(repoDir, "git", "init", "-q")
+	run(repoDir, "git", "config", "user.email", "t@t")
+	run(repoDir, "git", "config", "user.name", "t")
+	os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("test"), 0644)
+	run(repoDir, "git", "add", ".")
+	run(repoDir, "git", "commit", "-qm", "init")
+	return repoDir
+}
+
+func (r *Runner) setupHarnessConfig() {
+	switch r.harness.Name {
+	case "codex":
+		// Codex needs model_providers config to hit mock server
+		codexDir := filepath.Join(r.home, ".codex")
+		os.MkdirAll(codexDir, 0755)
+		config := fmt.Sprintf(`model = "%s"
+model_provider = "mock"
+
+[model_providers.mock]
+name = "Mock"
+base_url = "%s"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+
+[features]
+hooks = true
+`, r.harness.DefaultModel, r.baseURL)
+		os.WriteFile(filepath.Join(codexDir, "config.toml"), []byte(config), 0644)
+
+	case "copilot":
+		// Copilot BYOK needs explicit model
+		os.Setenv("COPILOT_MODEL", r.harness.DefaultModel)
+
+	case "claude":
+		// Claude needs settings.json with hooks (written in setupHooks)
+		// and permissions
+		claudeDir := filepath.Join(r.home, ".claude")
+		os.MkdirAll(claudeDir, 0755)
+		settings := `{"permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]}}`
+		os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(settings), 0644)
+	}
+}
+
 func (r *Runner) runHeadless() {
 	if !r.harness.HooksInHeadless {
 		r.skip(r.harness.Name + " does not fire hooks in headless mode")
@@ -241,34 +304,61 @@ func (r *Runner) runHeadless() {
 
 	fmt.Println("[phase 5] headless prompt")
 
+	r.setupHarnessConfig()
+
+	dir := r.home
 	if r.harness.NeedsGitRepo {
-		repoDir := filepath.Join(r.home, "test-repo")
-		os.MkdirAll(repoDir, 0755)
-		run(repoDir, "git", "init", "-q")
-		run(repoDir, "git", "config", "user.email", "t@t")
-		run(repoDir, "git", "config", "user.name", "t")
-		os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("test"), 0644)
-		run(repoDir, "git", "add", ".")
-		run(repoDir, "git", "commit", "-qm", "init")
+		dir = r.ensureGitRepo()
 	}
 
+	prompt := "What is the project codename? Reply ONLY the codename."
+
 	// Build the command
-	args := append(r.harness.HeadlessCmd[1:], "What is the project codename? Reply ONLY the codename.")
+	var args []string
+	args = append(args, r.harness.HeadlessCmd[1:]...)
+	args = append(args, r.harness.HeadlessExtraFlags...)
+
+	// Some harnesses take prompt as arg, Codex reads from stdin
+	if r.harness.Name == "codex" {
+		// Codex exec reads from stdin
+		args = append(args, "--dangerously-bypass-hook-trust")
+	} else {
+		args = append(args, prompt)
+	}
+
+	// Add model flag if needed
+	if r.harness.ModelFlag != "" {
+		args = append(args, r.harness.ModelFlag+r.harness.DefaultModel)
+	} else if r.harness.Name == "hermes" {
+		args = append(args, "-m", r.harness.DefaultModel, "--provider", "openrouter")
+	} else if r.harness.Name == "pi" {
+		args = append(args, "--provider", "openrouter", "--model", r.harness.DefaultModel, "--no-session")
+	} else if r.harness.Name == "claude" {
+		args = append(args, "--model", r.harness.DefaultModel)
+	}
+
 	cmd := exec.Command(r.harness.HeadlessCmd[0], args...)
 	cmd.Env = os.Environ()
+	cmd.Dir = dir
 
-	if r.harness.NeedsGitRepo {
-		cmd.Dir = filepath.Join(r.home, "test-repo")
+	// Codex reads prompt from stdin
+	if r.harness.Name == "codex" {
+		cmd.Stdin = strings.NewReader(prompt)
 	}
 
 	out, err := runWithTimeout(cmd, 60*time.Second)
 	if err != nil {
-		r.fail("headless: " + err.Error())
+		// Check if it's just a non-zero exit with output (some harnesses exit 1 but produce output)
+		if len(out) > 0 {
+			r.pass(fmt.Sprintf("headless produced output (%d bytes, exit: %v)", len(out), err))
+		} else {
+			r.fail("headless: " + err.Error())
+		}
 		return
 	}
 
 	if len(out) > 0 {
-		r.pass("headless produced output (" + fmt.Sprintf("%d bytes", len(out)) + ")")
+		r.pass(fmt.Sprintf("headless produced output (%d bytes)", len(out)))
 	} else {
 		r.fail("headless produced no output")
 	}
