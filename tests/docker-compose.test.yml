@@ -56,3 +56,11 @@ services:
     environment:
       - OPENROUTER_KEY
     network_mode: host
+
+  test-claude:
+    build:
+      context: ..
+      dockerfile: tests/containers/test-claude.Dockerfile
+    environment:
+      - ANTHROPIC_API_KEY
+    network_mode: host

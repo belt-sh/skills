@@ -32,7 +32,7 @@ cd "$REPO_ROOT"
 if [ $# -gt 0 ]; then
   SERVICES=("$@")
 else
-  SERVICES=(test-codex test-grok test-copilot test-opencode test-pi test-hermes test-mastracode)
+  SERVICES=(test-codex test-grok test-copilot test-opencode test-pi test-hermes test-mastracode test-claude)
 fi
 
 echo "=== Building and running: ${SERVICES[*]} ==="
