@@ -11,10 +11,9 @@ var All = map[string]Harness{
 		DefaultModel: "claude-haiku-4-5-20251001",
 		HookFormat:    JSONNested,
 		HookConfigDir: ".claude",
+		HookFileName:  "settings.json",
+		HookWrapper:   `{"permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]},"hooks":%s}`,
 		Events:        Events{PromptSubmit: "UserPromptSubmit", Stop: "Stop"},
-		ConfigFiles: []ConfigFile{
-			{Path: ".claude/settings.json", Content: `{"permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]}}`},
-		},
 		SkillsDir:          ".claude/skills",
 		HeadlessCmd:         []string{"claude", "-p"},
 		HeadlessModelArgs:   []string{"--model", "{{.Model}}", "--dangerously-skip-permissions"},

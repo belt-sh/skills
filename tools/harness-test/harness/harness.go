@@ -43,6 +43,8 @@ type Harness struct {
 	// Hooks
 	HookFormat    HookFormat
 	HookConfigDir string // where hook config goes (relative to $HOME)
+	HookFileName  string // override hook filename (default: format-dependent)
+	HookWrapper   string // JSON to wrap hooks in (e.g. Claude's permissions + hooks)
 	Events        Events
 
 	// Pre-flight config files (auth, trust, provider config, permissions)

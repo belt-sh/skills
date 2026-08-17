@@ -172,8 +172,14 @@ func (r *Runner) writeHooks() {
 	switch r.harness.HookFormat {
 	case harness.JSONNested:
 		filename = "belt.json"
-		content = fmt.Sprintf(`{"hooks":{"%s":[{"hooks":[{"type":"command","command":"%s","timeout":5}]}],"%s":[{"hooks":[{"type":"command","command":"%s","timeout":5}]}]}}`,
+		hooksJSON := fmt.Sprintf(`{"%s":[{"hooks":[{"type":"command","command":"%s","timeout":5}]}],"%s":[{"hooks":[{"type":"command","command":"%s","timeout":5}]}]}`,
 			r.harness.Events.PromptSubmit, promptCmd, r.harness.Events.Stop, stopCmd)
+		if r.harness.HookWrapper != "" {
+			content = fmt.Sprintf(r.harness.HookWrapper, hooksJSON)
+			filename = r.harness.HookFileName
+		} else {
+			content = fmt.Sprintf(`{"hooks":%s}`, hooksJSON)
+		}
 
 	case harness.JSONCopilot:
 		filename = "belt.json"
@@ -203,6 +209,9 @@ func (r *Runner) writeHooks() {
 		return
 	}
 
+	if r.harness.HookFileName != "" && filename == "belt.json" {
+		filename = r.harness.HookFileName
+	}
 	os.WriteFile(filepath.Join(hookDir, filename), []byte(content), 0644)
 	r.pass(fmt.Sprintf("hooks configured (code: %s)", r.injectCode))
 }
