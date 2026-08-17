@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,24 +18,26 @@ type Result struct {
 	Passed  int
 	Failed  int
 	Skipped int
-	Events  []string
 }
 
 type Mode int
 
 const (
-	ModeBoth        Mode = iota
+	ModeBoth Mode = iota
 	ModeHeadless
 	ModeInteractive
 )
 
 type Runner struct {
-	harness harness.Harness
-	server  *server.MockServer
-	baseURL string
-	home    string
-	mode    Mode
-	result  Result
+	harness    harness.Harness
+	server     *server.MockServer
+	baseURL    string
+	home       string
+	repoDir    string
+	injectCode string
+	mode       Mode
+	failed     bool
+	result     Result
 }
 
 func New(h harness.Harness, srv *server.MockServer, baseURL string) *Runner {
@@ -65,6 +68,7 @@ func (r *Runner) pass(msg string) {
 
 func (r *Runner) fail(msg string) {
 	r.result.Failed++
+	r.failed = true
 	fmt.Fprintf(os.Stderr, "  ✗ %s\n", msg)
 }
 
@@ -78,8 +82,12 @@ func (r *Runner) Run() Result {
 
 	r.setupHome()
 	r.checkBinary()
+	if r.failed {
+		return r.finish()
+	}
 	r.setupEndpoint()
-	r.setupHooks()
+	r.writeConfigFiles()
+	r.writeHooks()
 	r.setupSkills()
 
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
@@ -87,13 +95,16 @@ func (r *Runner) Run() Result {
 		r.checkHookEvents("headless")
 	}
 	if r.mode == ModeBoth || r.mode == ModeInteractive {
-		// Clear events from headless phase before interactive
 		os.Remove(filepath.Join(r.home, "hook-events.log"))
 		r.server.ClearLog()
 		r.runInteractive()
 		r.checkHookEvents("interactive")
 	}
 
+	return r.finish()
+}
+
+func (r *Runner) finish() Result {
 	fmt.Printf("\n=== %s: %d passed, %d failed, %d skipped ===\n\n",
 		r.harness.Name, r.result.Passed, r.result.Failed, r.result.Skipped)
 	return r.result
@@ -120,117 +131,80 @@ func (r *Runner) checkBinary() {
 
 func (r *Runner) setupEndpoint() {
 	fmt.Println("[phase 2] endpoint")
-
-	if r.harness.EndpointEnvVar != "" {
-		os.Setenv(r.harness.EndpointEnvVar, r.baseURL)
-		r.pass(r.harness.EndpointEnvVar + "=" + r.baseURL)
+	for envVar, tmpl := range r.harness.EndpointEnvVars {
+		val := r.expand(tmpl)
+		os.Setenv(envVar, val)
+		r.pass(envVar + "=" + val)
 	}
 	if r.harness.APIKeyEnvVar != "" {
 		os.Setenv(r.harness.APIKeyEnvVar, "mock-key")
 		r.pass(r.harness.APIKeyEnvVar + " set")
 	}
-
 	r.server.ClearLog()
 }
 
-func (r *Runner) setupHooks() {
+func (r *Runner) writeConfigFiles() {
+	if len(r.harness.ConfigFiles) == 0 {
+		return
+	}
+	for _, cf := range r.harness.ConfigFiles {
+		path := filepath.Join(r.home, cf.Path)
+		os.MkdirAll(filepath.Dir(path), 0755)
+		os.WriteFile(path, []byte(r.expand(cf.Content)), 0644)
+	}
+}
+
+func (r *Runner) writeHooks() {
 	fmt.Println("[phase 3] hooks")
 
 	hookDir := filepath.Join(r.home, r.harness.HookConfigDir)
 	os.MkdirAll(hookDir, 0755)
 
-	eventLogPath := filepath.Join(r.home, "hook-events.log")
-	injectCode := fmt.Sprintf("%s-%d", strings.ToUpper(r.harness.Name), time.Now().UnixMilli())
+	logPath := filepath.Join(r.home, "hook-events.log")
+	r.injectCode = fmt.Sprintf("%s-%d", strings.ToUpper(r.harness.Name), time.Now().UnixMilli())
+
+	promptCmd := fmt.Sprintf("echo PROMPT >> %s && echo 'The project codename is %s.'", logPath, r.injectCode)
+	stopCmd := fmt.Sprintf("echo STOP >> %s", logPath)
+
+	var content string
+	var filename string
 
 	switch r.harness.HookFormat {
 	case harness.JSONNested:
-		r.writeJSONNestedHooks(hookDir, eventLogPath, injectCode)
+		filename = "belt.json"
+		content = fmt.Sprintf(`{"hooks":{"%s":[{"hooks":[{"type":"command","command":"%s","timeout":5}]}],"%s":[{"hooks":[{"type":"command","command":"%s","timeout":5}]}]}}`,
+			r.harness.Events.PromptSubmit, promptCmd, r.harness.Events.Stop, stopCmd)
+
 	case harness.JSONCopilot:
-		r.writeCopilotHooks(hookDir, eventLogPath, injectCode)
+		filename = "belt.json"
+		injectJSON := fmt.Sprintf(`{\"additionalContext\": \"The project codename is %s.\"}`, r.injectCode)
+		copilotPromptCmd := fmt.Sprintf("echo PROMPT >> %s && echo '%s'", logPath, injectJSON)
+		content = fmt.Sprintf(`{"version":1,"hooks":{"%s":[{"type":"command","bash":"%s","timeoutSec":5}],"%s":[{"type":"command","bash":"%s","timeoutSec":5}]}}`,
+			r.harness.Events.PromptSubmit, copilotPromptCmd, r.harness.Events.Stop, stopCmd)
+
 	case harness.YAML:
-		r.writeYAMLHooks(hookDir, eventLogPath, injectCode)
+		filename = "config.yaml"
+		contextJSON := fmt.Sprintf(`{"context": "The project codename is %s."}`, r.injectCode)
+		yamlPromptCmd := fmt.Sprintf(`echo PROMPT >> %s && echo '%s'`, logPath, contextJSON)
+		content = fmt.Sprintf("model:\n  provider: openrouter\n  name: %s\nhooks:\n  %s:\n    - command: \"%s\"\n      timeout: 5\nhooks_auto_accept: true\n",
+			r.harness.DefaultModel, r.harness.Events.PromptSubmit, yamlPromptCmd)
+
 	case harness.TSExtension:
-		r.writeTSExtension(hookDir, eventLogPath, injectCode)
-	default:
-		r.skip("hook format not yet implemented: " + fmt.Sprint(r.harness.HookFormat))
-		return
-	}
-
-	r.pass(fmt.Sprintf("hooks configured (code: %s)", injectCode))
-}
-
-func (r *Runner) writeJSONNestedHooks(dir, logPath, code string) {
-	if r.harness.Name == "claude" {
-		// Claude hooks go in settings.json alongside permissions
-		settings := fmt.Sprintf(`{
-  "permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]},
-  "hooks": {
-    "%s": [{"matcher":"*","hooks":[{"type":"command","command":"echo PROMPT >> %s && echo 'The project codename is %s.'","timeout":5}]}],
-    "%s": [{"hooks":[{"type":"command","command":"echo STOP >> %s","timeout":5}]}]
-  }
-}`, r.harness.Events.PromptSubmit, logPath, code,
-			r.harness.Events.Stop, logPath)
-		os.WriteFile(filepath.Join(dir, "settings.json"), []byte(settings), 0644)
-		return
-	}
-
-	hooks := fmt.Sprintf(`{
-  "hooks": {
-    "%s": [{"hooks":[{"type":"command","command":"echo PROMPT >> %s && echo 'The project codename is %s.'","timeout":5}]}],
-    "%s": [{"hooks":[{"type":"command","command":"echo STOP >> %s","timeout":5}]}]
-  }
-}`, r.harness.Events.PromptSubmit, logPath, code,
-		r.harness.Events.Stop, logPath)
-
-	path := filepath.Join(dir, "belt.json")
-	os.WriteFile(path, []byte(hooks), 0644)
-}
-
-func (r *Runner) writeCopilotHooks(dir, logPath, code string) {
-	hooks := fmt.Sprintf(`{
-  "version": 1,
-  "hooks": {
-    "%s": [{"type":"command","bash":"echo PROMPT >> %s && echo '{\"additionalContext\": \"The project codename is %s.\"}'","timeoutSec":5}],
-    "%s": [{"type":"command","bash":"echo STOP >> %s","timeoutSec":5}]
-  }
-}`, r.harness.Events.PromptSubmit, logPath, code,
-		r.harness.Events.Stop, logPath)
-
-	path := filepath.Join(dir, "belt.json")
-	os.WriteFile(path, []byte(hooks), 0644)
-}
-
-func (r *Runner) writeYAMLHooks(dir, logPath, code string) {
-	config := fmt.Sprintf(`model:
-  provider: openrouter
-  name: %s
-hooks:
-  %s:
-    - command: "echo PROMPT >> %s && echo '{\"context\": \"The project codename is %s.\"}'"
-      timeout: 5
-hooks_auto_accept: true
-`, r.harness.DefaultModel, r.harness.Events.PromptSubmit, logPath, code)
-
-	path := filepath.Join(dir, "config.yaml")
-	os.WriteFile(path, []byte(config), 0644)
-
-	envPath := filepath.Join(dir, ".env")
-	os.WriteFile(envPath, []byte("OPENROUTER_API_KEY=mock-key\n"), 0644)
-}
-
-func (r *Runner) writeTSExtension(dir, logPath, code string) {
-	ext := fmt.Sprintf(`export default function (pi: any) {
+		filename = "belt-test.ts"
+		content = fmt.Sprintf(`export default function (pi: any) {
   pi.on("%s", async (event: any) => {
-    require("fs").appendFileSync("%s", "PROMPT\\n");
-    return {
-      systemPrompt: (event.systemPrompt || '') + '\\nThe project codename is %s.',
-    };
+    require("fs").appendFileSync("%s", "PROMPT\n");
+    return { systemPrompt: (event.systemPrompt || '') + '\nThe project codename is %s.' };
   });
-}
-`, r.harness.Events.PromptSubmit, logPath, code)
+}`, r.harness.Events.PromptSubmit, logPath, r.injectCode)
 
-	path := filepath.Join(dir, "belt-test.ts")
-	os.WriteFile(path, []byte(ext), 0644)
+	default:
+		r.skip("hook format not yet implemented")
+		return
+	}
+
+	os.WriteFile(filepath.Join(hookDir, filename), []byte(content), 0644)
+	r.pass(fmt.Sprintf("hooks configured (code: %s)", r.injectCode))
 }
 
 func (r *Runner) setupSkills() {
@@ -238,96 +212,23 @@ func (r *Runner) setupSkills() {
 		return
 	}
 	fmt.Println("[phase 4] skills")
-	skillsDir := filepath.Join(r.home, r.harness.SkillsDir)
-	os.MkdirAll(skillsDir, 0755)
+	os.MkdirAll(filepath.Join(r.home, r.harness.SkillsDir), 0755)
 	r.pass("skills directory created")
 }
 
 func (r *Runner) ensureGitRepo() string {
-	repoDir := filepath.Join(r.home, "test-repo")
-	if _, err := os.Stat(filepath.Join(repoDir, ".git")); err == nil {
-		return repoDir
+	if r.repoDir != "" {
+		return r.repoDir
 	}
-	os.MkdirAll(repoDir, 0755)
-	run(repoDir, "git", "init", "-q")
-	run(repoDir, "git", "config", "user.email", "t@t")
-	run(repoDir, "git", "config", "user.name", "t")
-	os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("test"), 0644)
-	run(repoDir, "git", "add", ".")
-	run(repoDir, "git", "commit", "-qm", "init")
-	return repoDir
-}
-
-func (r *Runner) setupHarnessConfig() {
-	switch r.harness.Name {
-	case "codex":
-		// Codex needs model_providers config to hit mock server
-		codexDir := filepath.Join(r.home, ".codex")
-		os.MkdirAll(codexDir, 0755)
-		config := fmt.Sprintf(`model = "%s"
-model_provider = "mock"
-
-[model_providers.mock]
-name = "Mock"
-base_url = "%s"
-env_key = "OPENAI_API_KEY"
-wire_api = "responses"
-
-[features]
-hooks = true
-`, r.harness.DefaultModel, r.baseURL)
-		os.WriteFile(filepath.Join(codexDir, "config.toml"), []byte(config), 0644)
-
-	case "copilot":
-		// Copilot BYOK needs explicit model
-		os.Setenv("COPILOT_MODEL", r.harness.DefaultModel)
-
-	case "claude":
-		claudeDir := filepath.Join(r.home, ".claude")
-		os.MkdirAll(claudeDir, 0755)
-		settings := `{"permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]}}`
-		os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(settings), 0644)
-
-	case "grok":
-		// Grok validates auth before doing anything. Seed a fake auth.json
-		// (same approach as xai-grok-pager-pty-harness/src/flows.rs)
-		grokDir := filepath.Join(r.home, ".grok")
-		os.MkdirAll(grokDir, 0755)
-		auth := fmt.Sprintf(`{
-  "https://auth.x.ai::b1a00492-073a-47ea-816f-4c329264a828": {
-    "key": "mock-test-token",
-    "auth_mode": "oidc",
-    "create_time": "2026-01-01T00:00:00Z",
-    "user_id": "mock-user",
-    "email": "mock@test.invalid",
-    "expires_at": "2030-01-01T00:00:00Z",
-    "refresh_token": "mock-refresh-token",
-    "oidc_issuer": "https://auth.x.ai",
-    "oidc_client_id": "b1a00492-073a-47ea-816f-4c329264a828",
-    "coding_data_retention_opt_out": false
-  }
-}`)
-		os.WriteFile(filepath.Join(grokDir, "auth.json"), []byte(auth), 0644)
-
-		// Also trust the workspace folder
-		trust := fmt.Sprintf("[folders.\"%s\"]\ntrusted = true\ndecided_at = 1786997000\n",
-			filepath.Join(r.home, "test-repo"))
-		os.WriteFile(filepath.Join(grokDir, "trusted_folders.toml"), []byte(trust), 0644)
-
-		// Point ALL Grok endpoints at mock server (from grok-build TestSandbox)
-		for _, key := range []string{
-			"GROK_CLI_CHAT_PROXY_BASE_URL",
-			"GROK_XAI_API_BASE_URL",
-			"GROK_MODELS_BASE_URL",
-			"GROK_FEEDBACK_BASE_URL",
-			"GROK_TRACE_UPLOAD_URL",
-			"GROK_MANAGED_CONFIG_URL",
-			"GROK_CONVERSATIONS_BASE_URL",
-		} {
-			os.Setenv(key, r.baseURL)
-		}
-		os.Setenv("XAI_API_KEY", "mock-test-key")
-	}
+	r.repoDir = filepath.Join(r.home, "test-repo")
+	os.MkdirAll(r.repoDir, 0755)
+	run(r.repoDir, "git", "init", "-q")
+	run(r.repoDir, "git", "config", "user.email", "t@t")
+	run(r.repoDir, "git", "config", "user.name", "t")
+	os.WriteFile(filepath.Join(r.repoDir, "README.md"), []byte("test"), 0644)
+	run(r.repoDir, "git", "add", ".")
+	run(r.repoDir, "git", "commit", "-qm", "init")
+	return r.repoDir
 }
 
 func (r *Runner) runHeadless() {
@@ -342,8 +243,6 @@ func (r *Runner) runHeadless() {
 
 	fmt.Println("[phase 5] headless prompt")
 
-	r.setupHarnessConfig()
-
 	dir := r.home
 	if r.harness.NeedsGitRepo {
 		dir = r.ensureGitRepo()
@@ -351,51 +250,31 @@ func (r *Runner) runHeadless() {
 
 	prompt := "What is the project codename? Reply ONLY the codename."
 
-	// Build the command
 	var args []string
 	args = append(args, r.harness.HeadlessCmd[1:]...)
-	args = append(args, r.harness.HeadlessExtraFlags...)
-
-	// Some harnesses take prompt as arg, Codex reads from stdin
-	if r.harness.Name == "codex" {
-		// Codex exec reads from stdin
-		args = append(args, "--dangerously-bypass-hook-trust")
-	} else {
+	if !r.harness.PromptViaStdin {
 		args = append(args, prompt)
 	}
-
-	// Add model flag if needed
-	if r.harness.ModelFlag != "" {
-		args = append(args, r.harness.ModelFlag+r.harness.DefaultModel)
-	} else if r.harness.Name == "hermes" {
-		args = append(args, "-m", r.harness.DefaultModel, "--provider", "openrouter")
-	} else if r.harness.Name == "pi" {
-		args = append(args, "--provider", "openrouter", "--model", r.harness.DefaultModel, "--no-session")
-	} else if r.harness.Name == "claude" {
-		args = append(args, "--model", r.harness.DefaultModel)
+	for _, a := range r.harness.HeadlessModelArgs {
+		args = append(args, r.expand(a))
 	}
 
-	cmd := exec.Command(r.harness.HeadlessCmd[0], args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, r.harness.HeadlessCmd[0], args...)
 	cmd.Env = os.Environ()
 	cmd.Dir = dir
-
-	// Codex reads prompt from stdin
-	if r.harness.Name == "codex" {
+	if r.harness.PromptViaStdin {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
 
-	out, err := runWithTimeout(cmd, 60*time.Second)
-	if err != nil {
-		// Check if it's just a non-zero exit with output (some harnesses exit 1 but produce output)
-		if len(out) > 0 {
-			r.pass(fmt.Sprintf("headless produced output (%d bytes, exit: %v)", len(out), err))
-		} else {
-			r.fail("headless: " + err.Error())
-		}
-		return
-	}
-
-	if len(out) > 0 {
+	out, err := cmd.CombinedOutput()
+	if err != nil && len(out) > 0 {
+		r.pass(fmt.Sprintf("headless produced output (%d bytes, exit: %v)", len(out), err))
+	} else if err != nil {
+		r.fail("headless: " + err.Error())
+	} else if len(out) > 0 {
 		r.pass(fmt.Sprintf("headless produced output (%d bytes)", len(out)))
 	} else {
 		r.fail("headless produced no output")
@@ -403,54 +282,34 @@ func (r *Runner) runHeadless() {
 }
 
 func (r *Runner) runInteractive() {
-	if len(r.harness.InteractiveCmd) == 0 {
-		return
-	}
-	if !r.harness.HooksInInteractive {
-		r.skip(r.harness.Name + " hooks don't fire in interactive mode")
+	if len(r.harness.InteractiveCmd) == 0 || !r.harness.HooksInInteractive {
 		return
 	}
 
 	fmt.Println("[phase 6] interactive (PTY) mode")
 
-	// Clear hook events from headless phase
-	eventLogPath := filepath.Join(r.home, "hook-events.log")
-	os.Remove(eventLogPath)
-	r.server.ClearLog()
-
-	// Build command
-	args := r.harness.InteractiveCmd[1:]
-	args = append(args, r.harness.InteractiveExtraFlags...)
-
 	dir := r.home
 	if r.harness.NeedsGitRepo {
-		dir = filepath.Join(r.home, "test-repo")
+		dir = r.ensureGitRepo()
 	}
 
-	env := os.Environ()
-
-	session, err := StartPTY(r.harness.InteractiveCmd[0], args, dir, env)
+	session, err := StartPTY(r.harness.InteractiveCmd[0], r.harness.InteractiveCmd[1:], dir, os.Environ())
 	if err != nil {
 		r.fail("PTY start: " + err.Error())
 		return
 	}
 	defer session.Close()
 
-	// Wait for the TUI to start (look for a prompt indicator)
-	_, started := session.WaitForAny([]string{">", "$", "❯", "/", "grok", "claude", "copilot", "hermes"}, 15*time.Second)
+	_, started := session.WaitForAny([]string{">", "$", "❯", "/", r.harness.Binary}, 15*time.Second)
 	if !started {
 		r.skip("TUI did not show prompt within 15s")
 		return
 	}
 	r.pass("TUI started")
 
-	// Send a prompt
 	session.SendLine("What is the project codename? Reply ONLY the codename.")
-
-	// Wait for response
 	time.Sleep(15 * time.Second)
 
-	// Exit
 	if r.harness.ExitCommand != "" {
 		session.SendLine(r.harness.ExitCommand)
 		time.Sleep(2 * time.Second)
@@ -462,16 +321,12 @@ func (r *Runner) runInteractive() {
 }
 
 func (r *Runner) checkHookEvents(phase string) {
-	label := fmt.Sprintf("[phase] hook events (%s)", phase)
-	fmt.Println(label)
+	fmt.Printf("[phase] hook events (%s)\n", phase)
 
-	logPath := filepath.Join(r.home, "hook-events.log")
-	data, err := os.ReadFile(logPath)
+	data, err := os.ReadFile(filepath.Join(r.home, "hook-events.log"))
 	if err != nil {
 		if phase == "headless" && !r.harness.HooksInHeadless {
 			r.skip(phase + ": hooks not expected in this mode")
-		} else if phase == "interactive" {
-			r.skip(phase + ": no hook events log")
 		} else {
 			r.skip(phase + ": no hook events log")
 		}
@@ -482,11 +337,7 @@ func (r *Runner) checkHookEvents(phase string) {
 	if strings.Contains(content, "PROMPT") {
 		r.pass(phase + ": prompt hook fired")
 	} else {
-		if phase == "headless" && !r.harness.HooksInHeadless {
-			r.skip(phase + ": hooks not expected in headless mode")
-		} else {
-			r.fail(phase + ": prompt hook not found")
-		}
+		r.fail(phase + ": prompt hook not found")
 	}
 	if strings.Contains(content, "STOP") {
 		r.pass(phase + ": stop hook fired")
@@ -494,35 +345,25 @@ func (r *Runner) checkHookEvents(phase string) {
 		r.skip(phase + ": stop hook not fired")
 	}
 
-	entries := r.server.Log()
-	if len(entries) > 0 {
+	if entries := r.server.Log(); len(entries) > 0 {
 		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, len(entries)))
 	}
+}
+
+func (r *Runner) expand(tmpl string) string {
+	s := strings.ReplaceAll(tmpl, "{{.BaseURL}}", r.baseURL)
+	s = strings.ReplaceAll(s, "{{.Model}}", r.harness.DefaultModel)
+	s = strings.ReplaceAll(s, "{{.APIKey}}", "mock-key")
+	if r.repoDir != "" {
+		s = strings.ReplaceAll(s, "{{.RepoDir}}", r.repoDir)
+	} else {
+		s = strings.ReplaceAll(s, "{{.RepoDir}}", filepath.Join(r.home, "test-repo"))
+	}
+	return s
 }
 
 func run(dir string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	return cmd.Run()
-}
-
-func runWithTimeout(cmd *exec.Cmd, timeout time.Duration) ([]byte, error) {
-	done := make(chan struct{})
-	var out []byte
-	var err error
-
-	go func() {
-		out, err = cmd.CombinedOutput()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return out, err
-	case <-time.After(timeout):
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
-		return nil, fmt.Errorf("timeout after %s", timeout)
-	}
 }

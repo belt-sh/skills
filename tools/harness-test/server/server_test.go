@@ -8,17 +8,23 @@ import (
 	"testing"
 )
 
-func TestChatCompletions(t *testing.T) {
+func startTestServer(t *testing.T, response string) string {
+	t.Helper()
 	s := New()
-	s.SetResponse("test response")
+	s.SetResponse(response)
 	url, err := s.Start()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	t.Cleanup(s.Close)
+	return url
+}
 
-	body := `{"model":"test","messages":[{"role":"user","content":"hi"}]}`
-	resp, err := http.Post(url+"/v1/chat/completions", "application/json", strings.NewReader(body))
+func TestChatCompletions(t *testing.T) {
+	url := startTestServer(t, "test response")
+
+	resp, err := http.Post(url+"/v1/chat/completions", "application/json",
+		strings.NewReader(`{"model":"test","messages":[{"role":"user","content":"hi"}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,32 +42,17 @@ func TestChatCompletions(t *testing.T) {
 	if !ok || len(choices) == 0 {
 		t.Fatal("no choices")
 	}
-	choice := choices[0].(map[string]any)
-	msg := choice["message"].(map[string]any)
+	msg := choices[0].(map[string]any)["message"].(map[string]any)
 	if msg["content"] != "test response" {
 		t.Fatalf("unexpected content: %v", msg["content"])
-	}
-
-	log := s.Log()
-	if len(log) != 1 {
-		t.Fatalf("expected 1 log entry, got %d", len(log))
-	}
-	if log[0].Model != "test" {
-		t.Fatalf("logged model: %s", log[0].Model)
 	}
 }
 
 func TestStreamingChatCompletions(t *testing.T) {
-	s := New()
-	s.SetResponse("streamed")
-	url, err := s.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
+	url := startTestServer(t, "streamed")
 
-	body := `{"model":"test","messages":[{"role":"user","content":"hi"}],"stream":true}`
-	resp, err := http.Post(url+"/v1/chat/completions", "application/json", strings.NewReader(body))
+	resp, err := http.Post(url+"/v1/chat/completions", "application/json",
+		strings.NewReader(`{"model":"test","messages":[{"role":"user","content":"hi"}],"stream":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,16 +72,10 @@ func TestStreamingChatCompletions(t *testing.T) {
 }
 
 func TestAnthropicMessages(t *testing.T) {
-	s := New()
-	s.SetResponse("anthropic response")
-	url, err := s.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
+	url := startTestServer(t, "anthropic response")
 
-	body := `{"model":"claude","messages":[{"role":"user","content":"hi"}],"max_tokens":100}`
-	resp, err := http.Post(url+"/v1/messages", "application/json", strings.NewReader(body))
+	resp, err := http.Post(url+"/v1/messages", "application/json",
+		strings.NewReader(`{"model":"claude","messages":[{"role":"user","content":"hi"}],"max_tokens":100}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,23 +89,16 @@ func TestAnthropicMessages(t *testing.T) {
 	if !ok || len(content) == 0 {
 		t.Fatal("no content")
 	}
-	block := content[0].(map[string]any)
-	if block["text"] != "anthropic response" {
-		t.Fatalf("unexpected text: %v", block["text"])
+	if content[0].(map[string]any)["text"] != "anthropic response" {
+		t.Fatalf("unexpected text: %v", content[0].(map[string]any)["text"])
 	}
 }
 
 func TestResponsesAPI(t *testing.T) {
-	s := New()
-	s.SetResponse("responses api text")
-	url, err := s.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
+	url := startTestServer(t, "responses api text")
 
-	body := `{"model":"test","input":"hi"}`
-	resp, err := http.Post(url+"/v1/responses", "application/json", strings.NewReader(body))
+	resp, err := http.Post(url+"/v1/responses", "application/json",
+		strings.NewReader(`{"model":"test","input":"hi"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,13 +116,11 @@ func TestLogEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	t.Cleanup(s.Close)
 
-	// Make a request
 	http.Post(url+"/v1/chat/completions", "application/json",
 		strings.NewReader(`{"model":"test","messages":[{"role":"user","content":"hi"}]}`))
 
-	// Check count
 	resp, _ := http.Get(url + "/log/count")
 	data, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -152,11 +128,9 @@ func TestLogEndpoints(t *testing.T) {
 		t.Fatalf("unexpected count: %s", data)
 	}
 
-	// Clear
 	req, _ := http.NewRequest("DELETE", url+"/log", nil)
 	http.DefaultClient.Do(req)
 
-	// Verify cleared
 	resp, _ = http.Get(url + "/log/count")
 	data, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()

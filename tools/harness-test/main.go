@@ -17,7 +17,6 @@ func main() {
 		mode        = flag.String("mode", "both", "test mode: headless, interactive, or both")
 		listFlag    = flag.Bool("list", false, "list available harnesses")
 		serverOnly  = flag.Bool("server", false, "run mock server only (no tests)")
-		port        = flag.Int("port", 0, "mock server port (0 = random)")
 	)
 	flag.Parse()
 
@@ -42,11 +41,7 @@ func main() {
 	srv := server.New()
 
 	if *serverOnly {
-		addr := fmt.Sprintf("127.0.0.1:%d", *port)
-		if *port == 0 {
-			addr = "127.0.0.1:4100"
-		}
-		fmt.Printf("Mock inference server running at http://%s\n", addr)
+		fmt.Println("Mock inference server")
 		fmt.Println("Endpoints: /v1/chat/completions, /v1/responses, /v1/messages, /v1/models")
 		fmt.Println("Utilities: GET /log, GET /log/count, DELETE /log, POST /response")
 		// For server-only mode we need a different listener setup
@@ -124,8 +119,6 @@ func apiName(f harness.APIFormat) string {
 		return "Resp"
 	case harness.Anthropic:
 		return "Anthro"
-	case harness.Google:
-		return "Google"
 	default:
 		return "?"
 	}
