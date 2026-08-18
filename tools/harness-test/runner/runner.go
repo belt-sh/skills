@@ -93,11 +93,6 @@ func (r *Runner) Run() Result {
 	r.writeHooks()
 	r.setupSkills()
 
-	hasToolHooks := r.harness.Events.PreToolUse != "" || r.harness.Events.PostToolUse != ""
-	if r.server != nil {
-		r.server.SetToolCallMode(hasToolHooks)
-	}
-
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
 		r.runHeadless()
 		r.checkHookEvents("headless")
@@ -105,9 +100,6 @@ func (r *Runner) Run() Result {
 	if r.mode == ModeBoth || r.mode == ModeInteractive {
 		os.Remove("/tmp/belt-hook-events.log")
 		r.server.ClearLog()
-		if r.server != nil {
-			r.server.SetToolCallMode(hasToolHooks)
-		}
 		r.runInteractive()
 		r.checkHookEvents("interactive")
 	}
@@ -151,6 +143,8 @@ func (r *Runner) checkBinary() {
 			r.fail(fmt.Sprintf("install %s: %v\n%s", r.harness.Binary, installErr, string(out)))
 			return
 		}
+		localBin := filepath.Join(r.home, ".local", "bin")
+		os.Setenv("PATH", localBin+":"+os.Getenv("PATH"))
 		if _, err := exec.LookPath(r.harness.Binary); err != nil {
 			r.fail(r.harness.Binary + " not found after install")
 			return
@@ -317,7 +311,7 @@ func (r *Runner) runHeadless() {
 		args = append(args, r.expand(a))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, r.harness.HeadlessCmd[0], args...)

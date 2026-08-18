@@ -27,7 +27,7 @@ var All = map[string]Harness{
 		},
 		SkillsDir:          ".claude/skills",
 		HeadlessCmd:         []string{"claude", "-p"},
-		HeadlessModelArgs:   []string{"--model", "{{.Model}}", "--dangerously-skip-permissions"},
+		HeadlessModelArgs:   []string{"--model", "{{.Model}}", "--dangerously-skip-permissions", "--max-turns", "1"},
 		NeedsGitRepo:        true,
 		HooksInHeadless:     true,
 		InteractiveCmd:      []string{"claude"},

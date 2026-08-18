@@ -19,6 +19,12 @@ COPY --from=builder /harness-test /usr/local/bin/harness-test
 
 # Non-root user (Claude/Codex refuse --dangerously-skip-permissions as root)
 RUN useradd -m -s /bin/bash testuser
+
+# npm global installs go to user-writable dir
+ENV NPM_CONFIG_PREFIX=/home/testuser/.npm-global
+ENV PATH="/home/testuser/.npm-global/bin:/home/testuser/.local/bin:$PATH"
+RUN mkdir -p /home/testuser/.npm-global && chown -R testuser:testuser /home/testuser
+
 USER testuser
 WORKDIR /home/testuser
 
