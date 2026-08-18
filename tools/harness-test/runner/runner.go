@@ -93,6 +93,11 @@ func (r *Runner) Run() Result {
 	r.writeHooks()
 	r.setupSkills()
 
+	hasToolHooks := r.harness.Events.PreToolUse != "" || r.harness.Events.PostToolUse != ""
+	if r.server != nil {
+		r.server.SetToolCallMode(hasToolHooks)
+	}
+
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
 		r.runHeadless()
 		r.checkHookEvents("headless")
@@ -100,6 +105,9 @@ func (r *Runner) Run() Result {
 	if r.mode == ModeBoth || r.mode == ModeInteractive {
 		os.Remove("/tmp/belt-hook-events.log")
 		r.server.ClearLog()
+		if r.server != nil {
+			r.server.SetToolCallMode(hasToolHooks)
+		}
 		r.runInteractive()
 		r.checkHookEvents("interactive")
 	}
@@ -178,17 +186,13 @@ func (r *Runner) writeHooks() {
 	os.Remove(logPath)
 	r.injectCode = fmt.Sprintf("%s-%d", strings.ToUpper(r.harness.Name), time.Now().UnixMilli())
 
-	promptCmd := fmt.Sprintf("echo PROMPT >> %s && echo 'The project codename is %s.'", logPath, r.injectCode)
-	stopCmd := fmt.Sprintf("echo STOP >> %s", logPath)
-
 	var content string
 	var filename string
 
 	switch r.harness.HookFormat {
 	case harness.JSONNested:
 		filename = "belt.json"
-		hooksJSON := fmt.Sprintf(`{"%s":[{"hooks":[{"type":"command","command":"%s","timeout":5}]}],"%s":[{"hooks":[{"type":"command","command":"%s","timeout":5}]}]}`,
-			r.harness.Events.PromptSubmit, promptCmd, r.harness.Events.Stop, stopCmd)
+		hooksJSON := r.buildNestedHooksJSON(logPath)
 		if r.harness.HookWrapper != "" {
 			content = fmt.Sprintf(r.harness.HookWrapper, hooksJSON)
 			filename = r.harness.HookFileName
@@ -200,6 +204,7 @@ func (r *Runner) writeHooks() {
 		filename = "belt.json"
 		injectJSON := fmt.Sprintf(`{\"additionalContext\": \"The project codename is %s.\"}`, r.injectCode)
 		copilotPromptCmd := fmt.Sprintf("echo PROMPT >> %s && echo '%s'", logPath, injectJSON)
+		stopCmd := fmt.Sprintf("echo STOP >> %s", logPath)
 		content = fmt.Sprintf(`{"version":1,"hooks":{"%s":[{"type":"command","bash":"%s","timeoutSec":5}],"%s":[{"type":"command","bash":"%s","timeoutSec":5}]}}`,
 			r.harness.Events.PromptSubmit, copilotPromptCmd, r.harness.Events.Stop, stopCmd)
 
@@ -379,15 +384,23 @@ func (r *Runner) checkHookEvents(phase string) {
 	}
 
 	content := string(data)
-	if strings.Contains(content, "PROMPT") {
-		r.pass(phase + ": prompt hook fired")
-	} else {
-		r.fail(phase + ": prompt hook not found")
+	checks := []struct{ tag, label, event string }{
+		{"SESSION_START", "session-start", r.harness.Events.SessionStart},
+		{"PROMPT", "prompt", r.harness.Events.PromptSubmit},
+		{"PRE_TOOL", "pre-tool-use", r.harness.Events.PreToolUse},
+		{"POST_TOOL", "post-tool-use", r.harness.Events.PostToolUse},
+		{"STOP", "stop", r.harness.Events.Stop},
+		{"PRE_COMPACT", "pre-compact", r.harness.Events.PreCompact},
 	}
-	if strings.Contains(content, "STOP") {
-		r.pass(phase + ": stop hook fired")
-	} else {
-		r.skip(phase + ": stop hook not fired")
+	for _, c := range checks {
+		if c.event == "" {
+			continue
+		}
+		if strings.Contains(content, c.tag) {
+			r.pass(fmt.Sprintf("%s: %s hook fired", phase, c.label))
+		} else {
+			r.skip(fmt.Sprintf("%s: %s hook not fired", phase, c.label))
+		}
 	}
 
 	if entries := r.server.Log(); len(entries) > 0 {
@@ -397,13 +410,23 @@ func (r *Runner) checkHookEvents(phase string) {
 
 func (r *Runner) checkHookEventsFromOutput(phase string) {
 	out := r.lastOutput
-	if strings.Contains(out, "hook: "+r.harness.Events.PromptSubmit) {
-		r.pass(phase + ": prompt hook fired (output)")
-	} else {
-		r.skip(phase + ": prompt hook not detected in output")
+	checks := []struct{ event, label string }{
+		{r.harness.Events.SessionStart, "session-start"},
+		{r.harness.Events.PromptSubmit, "prompt"},
+		{r.harness.Events.PreToolUse, "pre-tool-use"},
+		{r.harness.Events.PostToolUse, "post-tool-use"},
+		{r.harness.Events.Stop, "stop"},
+		{r.harness.Events.PreCompact, "pre-compact"},
 	}
-	if r.harness.Events.Stop != "" && strings.Contains(out, "hook: "+r.harness.Events.Stop) {
-		r.pass(phase + ": stop hook fired (output)")
+	for _, c := range checks {
+		if c.event == "" {
+			continue
+		}
+		if strings.Contains(out, "hook: "+c.event) {
+			r.pass(fmt.Sprintf("%s: %s hook fired (output)", phase, c.label))
+		} else {
+			r.skip(fmt.Sprintf("%s: %s hook not detected in output", phase, c.label))
+		}
 	}
 	if entries := r.server.Log(); len(entries) > 0 {
 		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, len(entries)))
@@ -414,12 +437,45 @@ func (r *Runner) expand(tmpl string) string {
 	s := strings.ReplaceAll(tmpl, "{{.BaseURL}}", r.baseURL)
 	s = strings.ReplaceAll(s, "{{.Model}}", r.harness.DefaultModel)
 	s = strings.ReplaceAll(s, "{{.APIKey}}", "mock-key")
+	s = strings.ReplaceAll(s, "{{.HomeDir}}", r.home)
 	if r.repoDir != "" {
 		s = strings.ReplaceAll(s, "{{.RepoDir}}", r.repoDir)
 	} else {
 		s = strings.ReplaceAll(s, "{{.RepoDir}}", filepath.Join(r.home, "test-repo"))
 	}
 	return s
+}
+
+func (r *Runner) buildNestedHooksJSON(logPath string) string {
+	evts := r.harness.Events
+	entries := []struct {
+		name, tag string
+		matcher   string
+	}{
+		{evts.SessionStart, "SESSION_START", ""},
+		{evts.PromptSubmit, "PROMPT", ""},
+		{evts.PreToolUse, "PRE_TOOL", "Read"},
+		{evts.PostToolUse, "POST_TOOL", "Read"},
+		{evts.Stop, "STOP", ""},
+		{evts.PreCompact, "PRE_COMPACT", ""},
+	}
+	parts := []string{}
+	for _, e := range entries {
+		if e.name == "" {
+			continue
+		}
+		cmd := fmt.Sprintf("echo %s >> %s", e.tag, logPath)
+		if e.tag == "PROMPT" {
+			cmd += fmt.Sprintf(" && echo 'The project codename is %s.'", r.injectCode)
+		}
+		hook := fmt.Sprintf(`{"type":"command","command":"%s","timeout":5}`, cmd)
+		if e.matcher != "" {
+			parts = append(parts, fmt.Sprintf(`"%s":[{"matcher":"%s","hooks":[%s]}]`, e.name, e.matcher, hook))
+		} else {
+			parts = append(parts, fmt.Sprintf(`"%s":[{"hooks":[%s]}]`, e.name, hook))
+		}
+	}
+	return "{" + strings.Join(parts, ",") + "}"
 }
 
 func run(dir string, name string, args ...string) error {

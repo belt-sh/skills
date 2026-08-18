@@ -76,5 +76,8 @@ type Harness struct {
 type Events struct {
 	SessionStart string
 	PromptSubmit string
+	PreToolUse   string
+	PostToolUse  string
 	Stop         string
+	PreCompact   string
 }

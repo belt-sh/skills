@@ -25,9 +25,11 @@ type MockServer struct {
 	srv      *http.Server
 	listener net.Listener
 
-	mu       sync.Mutex
-	log      []LogEntry
-	response string // default response text
+	mu           sync.Mutex
+	log          []LogEntry
+	response     string // default response text
+	toolCallMode bool   // respond with a tool call first, then text
+	toolCallSeen bool   // track if we already sent the tool call
 }
 
 func New() *MockServer {
@@ -71,6 +73,23 @@ func (s *MockServer) SetResponse(text string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.response = text
+}
+
+func (s *MockServer) SetToolCallMode(on bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.toolCallMode = on
+	s.toolCallSeen = false
+}
+
+func (s *MockServer) shouldToolCall() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.toolCallMode && !s.toolCallSeen {
+		s.toolCallSeen = true
+		return true
+	}
+	return false
 }
 
 func (s *MockServer) Log() []LogEntry {
@@ -152,6 +171,11 @@ func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Reques
 
 	text := s.getResponse()
 
+	if s.shouldToolCall() {
+		s.handleChatToolCall(w, model, stream)
+		return
+	}
+
 	if stream {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -189,6 +213,55 @@ func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Reques
 		"choices": []any{map[string]any{
 			"message":       map[string]any{"role": "assistant", "content": text},
 			"finish_reason": "stop", "index": 0,
+		}},
+		"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+	})
+}
+
+func (s *MockServer) handleChatToolCall(w http.ResponseWriter, model string, stream bool) {
+	toolCall := map[string]any{
+		"id":   "call_mock_1",
+		"type": "function",
+		"function": map[string]any{
+			"name":      "Read",
+			"arguments": `{"file_path":"README.md"}`,
+		},
+	}
+	if stream {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(200)
+		fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]any{
+			"id": "mock-tc", "object": "chat.completion.chunk", "model": model,
+			"choices": []any{map[string]any{
+				"index": 0, "delta": map[string]any{"role": "assistant", "tool_calls": []any{toolCall}},
+			}},
+		}))
+		fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]any{
+			"id": "mock-tc", "object": "chat.completion.chunk", "model": model,
+			"choices": []any{map[string]any{
+				"index": 0, "delta": map[string]any{}, "finish_reason": "tool_calls",
+			}},
+		}))
+		fmt.Fprint(w, "data: [DONE]\n\n")
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		if hj, ok := w.(http.Hijacker); ok {
+			conn, buf, err := hj.Hijack()
+			if err == nil {
+				buf.Flush()
+				conn.Close()
+			}
+		}
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"id": "mock-tc", "object": "chat.completion", "model": model,
+		"choices": []any{map[string]any{
+			"message":       map[string]any{"role": "assistant", "tool_calls": []any{toolCall}},
+			"finish_reason": "tool_calls", "index": 0,
 		}},
 		"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
 	})
@@ -254,6 +327,11 @@ func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 	text := s.getResponse()
 
+	if s.shouldToolCall() {
+		s.handleAnthropicToolCall(w, model, stream)
+		return
+	}
+
 	if stream {
 		flusher, canFlush := w.(http.Flusher)
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -306,6 +384,63 @@ func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		"content":     []any{map[string]any{"type": "text", "text": text}},
 		"stop_reason": "end_turn",
 		"usage":       map[string]any{"input_tokens": 10, "output_tokens": 5},
+	})
+}
+
+func (s *MockServer) handleAnthropicToolCall(w http.ResponseWriter, model string, stream bool) {
+	toolUseBlock := map[string]any{
+		"type": "tool_use", "id": "toolu_mock_1", "name": "Read",
+		"input": map[string]any{"file_path": "README.md"},
+	}
+	if stream {
+		flusher, canFlush := w.(http.Flusher)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(200)
+		events := []string{
+			fmt.Sprintf("event: message_start\ndata: %s\n\n", mustJSON(map[string]any{
+				"type": "message_start",
+				"message": map[string]any{"id": "mock-tc", "type": "message", "role": "assistant", "content": []any{}, "model": model},
+			})),
+			fmt.Sprintf("event: content_block_start\ndata: %s\n\n", mustJSON(map[string]any{
+				"type": "content_block_start", "index": 0,
+				"content_block": map[string]any{"type": "tool_use", "id": "toolu_mock_1", "name": "Read", "input": map[string]any{}},
+			})),
+			fmt.Sprintf("event: content_block_delta\ndata: %s\n\n", mustJSON(map[string]any{
+				"type": "content_block_delta", "index": 0,
+				"delta": map[string]any{"type": "input_json_delta", "partial_json": `{"file_path":"README.md"}`},
+			})),
+			fmt.Sprintf("event: content_block_stop\ndata: %s\n\n", mustJSON(map[string]any{
+				"type": "content_block_stop", "index": 0,
+			})),
+			fmt.Sprintf("event: message_delta\ndata: %s\n\n", mustJSON(map[string]any{
+				"type": "message_delta",
+				"delta": map[string]any{"stop_reason": "tool_use"},
+				"usage": map[string]any{"output_tokens": 15},
+			})),
+			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+		}
+		for _, e := range events {
+			fmt.Fprint(w, e)
+			if canFlush {
+				flusher.Flush()
+			}
+		}
+		if hj, ok := w.(http.Hijacker); ok {
+			conn, buf, err := hj.Hijack()
+			if err == nil {
+				buf.Flush()
+				conn.Close()
+			}
+		}
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"id": "mock-tc", "type": "message", "role": "assistant", "model": model,
+		"content":     []any{toolUseBlock},
+		"stop_reason": "tool_use",
+		"usage":       map[string]any{"input_tokens": 10, "output_tokens": 15},
 	})
 }
 
