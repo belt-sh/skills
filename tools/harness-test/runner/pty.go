@@ -81,6 +81,12 @@ func (s *PTYSession) WaitForAny(targets []string, timeout time.Duration) (string
 	return "", false
 }
 
+func (s *PTYSession) Output() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.output.String()
+}
+
 func (s *PTYSession) Close() {
 	if s.cmd.Process != nil {
 		s.cmd.Process.Kill()

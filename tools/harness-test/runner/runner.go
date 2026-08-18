@@ -143,8 +143,11 @@ func (r *Runner) checkBinary() {
 			r.fail(fmt.Sprintf("install %s: %v\n%s", r.harness.Binary, installErr, string(out)))
 			return
 		}
-		localBin := filepath.Join(r.home, ".local", "bin")
-		os.Setenv("PATH", localBin+":"+os.Getenv("PATH"))
+		extraPaths := []string{
+			filepath.Join(r.home, ".local", "bin"),
+			filepath.Join(r.home, ".grok", "bin"),
+		}
+		os.Setenv("PATH", strings.Join(extraPaths, ":")+":"+os.Getenv("PATH"))
 		if _, err := exec.LookPath(r.harness.Binary); err != nil {
 			r.fail(r.harness.Binary + " not found after install")
 			return
@@ -353,29 +356,42 @@ func (r *Runner) runInteractive() {
 		dir = r.ensureGitRepo()
 	}
 
-	session, err := StartPTY(r.harness.InteractiveCmd[0], r.harness.InteractiveCmd[1:], dir, os.Environ())
+	var iargs []string
+	iargs = append(iargs, r.harness.InteractiveCmd[1:]...)
+	for _, a := range r.harness.InteractiveArgs {
+		iargs = append(iargs, r.expand(a))
+	}
+
+	session, err := StartPTY(r.harness.InteractiveCmd[0], iargs, dir, os.Environ())
 	if err != nil {
 		r.fail("PTY start: " + err.Error())
 		return
 	}
 	defer session.Close()
 
-	_, started := session.WaitForAny([]string{">", "$", "❯", "/", r.harness.Binary}, 15*time.Second)
+	_, started := session.WaitForAny([]string{">", "$", "❯", "/", r.harness.Binary, "?"}, 20*time.Second)
 	if !started {
-		r.skip("TUI did not show prompt within 15s")
+		r.skip("TUI did not show prompt within 20s")
 		return
 	}
 	r.pass("TUI started")
 
 	session.SendLine("What is the project codename? Reply ONLY the codename.")
-	time.Sleep(15 * time.Second)
+
+	session.WaitForAny([]string{"mock", "Hello", "codename", "server", "error", "Error"}, 30*time.Second)
+	time.Sleep(3 * time.Second)
 
 	if r.harness.ExitCommand != "" {
 		session.SendLine(r.harness.ExitCommand)
-		time.Sleep(2 * time.Second)
+		time.Sleep(3 * time.Second)
 	}
 	session.SendCtrlC()
 	session.Wait(5 * time.Second)
+
+	r.lastOutput = session.Output()
+	if os.Getenv("HARNESS_DEBUG") != "" && r.lastOutput != "" {
+		fmt.Printf("    [debug] PTY output (%d bytes)\n", len(r.lastOutput))
+	}
 
 	r.pass("interactive session completed")
 }
@@ -383,66 +399,42 @@ func (r *Runner) runInteractive() {
 func (r *Runner) checkHookEvents(phase string) {
 	fmt.Printf("[phase] hook events (%s)\n", phase)
 
-	if r.harness.PreserveHome {
-		r.checkHookEventsFromOutput(phase)
-		return
+	logContent := ""
+	if data, err := os.ReadFile("/tmp/belt-hook-events.log"); err == nil {
+		logContent = string(data)
+	}
+	ptyContent := stripANSI(r.lastOutput)
+
+	type check struct {
+		tag, outputEvent, label, event string
+	}
+	checks := []check{
+		{"SESSION_START", "SessionStart", "session-start", r.harness.Events.SessionStart},
+		{"PROMPT", "UserPromptSubmit", "prompt", r.harness.Events.PromptSubmit},
+		{"PRE_TOOL", "PreToolUse", "pre-tool-use", r.harness.Events.PreToolUse},
+		{"POST_TOOL", "PostToolUse", "post-tool-use", r.harness.Events.PostToolUse},
+		{"STOP", "Stop", "stop", r.harness.Events.Stop},
+		{"PRE_COMPACT", "PreCompact", "pre-compact", r.harness.Events.PreCompact},
 	}
 
-	data, err := os.ReadFile("/tmp/belt-hook-events.log")
-	if err != nil {
-		if phase == "headless" && !r.harness.HooksInHeadless {
-			r.skip(phase + ": hooks not expected in this mode")
-		} else {
-			r.skip(phase + ": no hook events log")
-		}
-		return
-	}
-
-	content := string(data)
-	checks := []struct{ tag, label, event string }{
-		{"SESSION_START", "session-start", r.harness.Events.SessionStart},
-		{"PROMPT", "prompt", r.harness.Events.PromptSubmit},
-		{"PRE_TOOL", "pre-tool-use", r.harness.Events.PreToolUse},
-		{"POST_TOOL", "post-tool-use", r.harness.Events.PostToolUse},
-		{"STOP", "stop", r.harness.Events.Stop},
-		{"PRE_COMPACT", "pre-compact", r.harness.Events.PreCompact},
-	}
 	for _, c := range checks {
 		if c.event == "" {
 			continue
 		}
-		if strings.Contains(content, c.tag) {
+		found := false
+		if logContent != "" && strings.Contains(logContent, c.tag) {
+			found = true
+		}
+		if !found && ptyContent != "" && strings.Contains(ptyContent, "hook: "+c.event) {
+			found = true
+		}
+		if found {
 			r.pass(fmt.Sprintf("%s: %s hook fired", phase, c.label))
 		} else {
 			r.skip(fmt.Sprintf("%s: %s hook not fired", phase, c.label))
 		}
 	}
 
-	if entries := r.server.Log(); len(entries) > 0 {
-		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, len(entries)))
-	}
-}
-
-func (r *Runner) checkHookEventsFromOutput(phase string) {
-	out := r.lastOutput
-	checks := []struct{ event, label string }{
-		{r.harness.Events.SessionStart, "session-start"},
-		{r.harness.Events.PromptSubmit, "prompt"},
-		{r.harness.Events.PreToolUse, "pre-tool-use"},
-		{r.harness.Events.PostToolUse, "post-tool-use"},
-		{r.harness.Events.Stop, "stop"},
-		{r.harness.Events.PreCompact, "pre-compact"},
-	}
-	for _, c := range checks {
-		if c.event == "" {
-			continue
-		}
-		if strings.Contains(out, "hook: "+c.event) {
-			r.pass(fmt.Sprintf("%s: %s hook fired (output)", phase, c.label))
-		} else {
-			r.skip(fmt.Sprintf("%s: %s hook not detected in output", phase, c.label))
-		}
-	}
 	if entries := r.server.Log(); len(entries) > 0 {
 		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, len(entries)))
 	}
@@ -491,6 +483,26 @@ func (r *Runner) buildNestedHooksJSON(logPath string) string {
 		}
 	}
 	return "{" + strings.Join(parts, ",") + "}"
+}
+
+func stripANSI(s string) string {
+	result := make([]byte, 0, len(s))
+	i := 0
+	for i < len(s) {
+		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[' {
+			i += 2
+			for i < len(s) && !((s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= 'a' && s[i] <= 'z')) {
+				i++
+			}
+			if i < len(s) {
+				i++
+			}
+		} else {
+			result = append(result, s[i])
+			i++
+		}
+	}
+	return string(result)
 }
 
 func run(dir string, name string, args ...string) error {

@@ -197,13 +197,7 @@ func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Reques
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-		if hj, ok := w.(http.Hijacker); ok {
-			conn, buf, err := hj.Hijack()
-			if err == nil {
-				buf.Flush()
-				conn.Close()
-			}
-		}
+		// stream done — flush is sufficient, [DONE] / message_stop signals EOF
 		return
 	}
 
@@ -247,13 +241,7 @@ func (s *MockServer) handleChatToolCall(w http.ResponseWriter, model string, str
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-		if hj, ok := w.(http.Hijacker); ok {
-			conn, buf, err := hj.Hijack()
-			if err == nil {
-				buf.Flush()
-				conn.Close()
-			}
-		}
+		// stream done — flush is sufficient, [DONE] / message_stop signals EOF
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -298,14 +286,7 @@ func (s *MockServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
-	// Close the connection so the client sees EOF
-	if hj, ok := w.(http.Hijacker); ok {
-		conn, buf, err := hj.Hijack()
-		if err == nil {
-			buf.Flush()
-			conn.Close()
-		}
-	}
+	// response.completed signals EOF — client closes the reader
 }
 
 // POST /v1/messages — Anthropic format
@@ -368,13 +349,7 @@ func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 				flusher.Flush()
 			}
 		}
-		if hj, ok := w.(http.Hijacker); ok {
-			conn, buf, err := hj.Hijack()
-			if err == nil {
-				buf.Flush()
-				conn.Close()
-			}
-		}
+		// stream done — flush is sufficient, [DONE] / message_stop signals EOF
 		return
 	}
 
@@ -426,13 +401,7 @@ func (s *MockServer) handleAnthropicToolCall(w http.ResponseWriter, model string
 				flusher.Flush()
 			}
 		}
-		if hj, ok := w.(http.Hijacker); ok {
-			conn, buf, err := hj.Hijack()
-			if err == nil {
-				buf.Flush()
-				conn.Close()
-			}
-		}
+		// stream done — flush is sufficient, [DONE] / message_stop signals EOF
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
