@@ -65,10 +65,11 @@ type Harness struct {
 	HooksInHeadless bool
 
 	// Interactive (PTY/TUI) mode
-	InteractiveCmd      []string
-	InteractiveArgs     []string // extra flags for interactive mode, supports {{.Model}} etc.
-	ExitCommand         string
-	HooksInInteractive  bool
+	InteractiveCmd         []string
+	InteractiveArgs        []string // extra flags for interactive mode, supports {{.Model}} etc.
+	ExitCommand            string
+	HooksInInteractive     bool
+	NeedsAuthForInteractive bool // TUI requires OAuth login (can't test hooks without real auth)
 
 	// Setup
 	PreserveHome bool // don't override HOME (harness needs installed plugins)

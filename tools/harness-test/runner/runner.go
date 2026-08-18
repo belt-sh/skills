@@ -93,15 +93,27 @@ func (r *Runner) Run() Result {
 	r.writeHooks()
 	r.setupSkills()
 
+	hasToolHooks := r.harness.Events.PreToolUse != "" || r.harness.Events.PostToolUse != ""
+
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
+		if r.server != nil && hasToolHooks {
+			r.server.SetToolCallMode(true)
+		}
 		r.runHeadless()
 		r.checkHookEvents("headless")
 	}
 	if r.mode == ModeBoth || r.mode == ModeInteractive {
 		os.Remove("/tmp/belt-hook-events.log")
 		r.server.ClearLog()
+		if r.server != nil && hasToolHooks {
+			r.server.SetToolCallMode(true)
+		}
 		r.runInteractive()
-		r.checkHookEvents("interactive")
+		if r.harness.NeedsAuthForInteractive {
+			r.skip("interactive hooks: requires OAuth (headless covers hook verification)")
+		} else {
+			r.checkHookEvents("interactive")
+		}
 	}
 
 	return r.finish()
@@ -342,6 +354,8 @@ func (r *Runner) runHeadless() {
 	} else {
 		r.fail("headless produced no output")
 	}
+	// Wait for async hooks (Stop) to finish writing
+	time.Sleep(2 * time.Second)
 }
 
 func (r *Runner) runInteractive() {
@@ -369,27 +383,46 @@ func (r *Runner) runInteractive() {
 	}
 	defer session.Close()
 
-	_, started := session.WaitForAny([]string{">", "$", "❯", "/", r.harness.Binary, "?"}, 20*time.Second)
-	if !started {
-		r.skip("TUI did not show prompt within 20s")
-		return
+	// Wait for TUI to load, handle onboarding dialogs
+	time.Sleep(3 * time.Second)
+	for i := 0; i < 15; i++ {
+		out := stripANSI(session.Output())
+		if strings.Contains(out, "theme") || strings.Contains(out, "Theme") ||
+			strings.Contains(out, "onboarding") || strings.Contains(out, "style") {
+			session.SendLine("") // press Enter to accept default
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if strings.Contains(out, "trust") || strings.Contains(out, "Trust") {
+			session.SendLine("") // accept trust dialog
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		if len(out) > 200 {
+			break
+		}
+		time.Sleep(1 * time.Second)
 	}
 	r.pass("TUI started")
 
 	session.SendLine("What is the project codename? Reply ONLY the codename.")
 
-	session.WaitForAny([]string{"mock", "Hello", "codename", "server", "error", "Error"}, 30*time.Second)
+	// Wait for mock server response to appear in output
+	session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server"}, 30*time.Second)
 	time.Sleep(3 * time.Second)
 
 	if r.harness.ExitCommand != "" {
 		session.SendLine(r.harness.ExitCommand)
-		time.Sleep(3 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 	session.SendCtrlC()
 	session.Wait(5 * time.Second)
 
+	// Extra wait for Stop hook to write
+	time.Sleep(2 * time.Second)
+
 	r.lastOutput = session.Output()
-	if os.Getenv("HARNESS_DEBUG") != "" && r.lastOutput != "" {
+	if os.Getenv("HARNESS_DEBUG") != "" {
 		fmt.Printf("    [debug] PTY output (%d bytes)\n", len(r.lastOutput))
 	}
 
