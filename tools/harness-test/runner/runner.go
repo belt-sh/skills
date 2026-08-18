@@ -95,7 +95,7 @@ func (r *Runner) Run() Result {
 		r.checkHookEvents("headless")
 	}
 	if r.mode == ModeBoth || r.mode == ModeInteractive {
-		os.Remove(filepath.Join(r.home, "hook-events.log"))
+		os.Remove("/tmp/belt-hook-events.log")
 		r.server.ClearLog()
 		r.runInteractive()
 		r.checkHookEvents("interactive")
@@ -160,7 +160,8 @@ func (r *Runner) writeHooks() {
 	hookDir := filepath.Join(r.home, r.harness.HookConfigDir)
 	os.MkdirAll(hookDir, 0755)
 
-	logPath := filepath.Join(r.home, "hook-events.log")
+	logPath := "/tmp/belt-hook-events.log"
+	os.Remove(logPath)
 	r.injectCode = fmt.Sprintf("%s-%d", strings.ToUpper(r.harness.Name), time.Now().UnixMilli())
 
 	promptCmd := fmt.Sprintf("echo PROMPT >> %s && echo 'The project codename is %s.'", logPath, r.injectCode)
@@ -332,7 +333,7 @@ func (r *Runner) runInteractive() {
 func (r *Runner) checkHookEvents(phase string) {
 	fmt.Printf("[phase] hook events (%s)\n", phase)
 
-	data, err := os.ReadFile(filepath.Join(r.home, "hook-events.log"))
+	data, err := os.ReadFile("/tmp/belt-hook-events.log")
 	if err != nil {
 		if phase == "headless" && !r.harness.HooksInHeadless {
 			r.skip(phase + ": hooks not expected in this mode")

@@ -39,11 +39,13 @@ func New() *MockServer {
 	// OpenAI Chat Completions
 	mux.HandleFunc("POST /v1/chat/completions", s.handleChatCompletions)
 
-	// OpenAI Responses API (WebSocket upgrade or HTTP fallback)
+	// OpenAI Responses API
 	mux.HandleFunc("POST /v1/responses", s.handleResponses)
+	mux.HandleFunc("POST /responses", s.handleResponses)
 
 	// Anthropic Messages
 	mux.HandleFunc("POST /v1/messages", s.handleMessages)
+	mux.HandleFunc("POST /messages", s.handleMessages)
 
 	// Model listing
 	mux.HandleFunc("GET /v1/models", s.handleModels)
@@ -171,6 +173,13 @@ func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Reques
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
+		if hj, ok := w.(http.Hijacker); ok {
+			conn, buf, err := hj.Hijack()
+			if err == nil {
+				buf.Flush()
+				conn.Close()
+			}
+		}
 		return
 	}
 
@@ -185,54 +194,44 @@ func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// POST /v1/responses — OpenAI Responses API (HTTP fallback, not WebSocket)
+// POST /v1/responses and /responses — OpenAI Responses API
 func (s *MockServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	s.record(r, body)
 
 	text := s.getResponse()
+	flusher, canFlush := w.(http.Flusher)
 
 	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(200)
 
-	fmt.Fprintf(w, "event: response.created\ndata: %s\n\n", mustJSON(map[string]any{
-		"type": "response.created",
-		"response": map[string]any{
-			"id": "mock-resp-1", "status": "in_progress",
-			"output": []any{},
-		},
-	}))
-	fmt.Fprintf(w, "event: response.output_item.added\ndata: %s\n\n", mustJSON(map[string]any{
-		"type":     "response.output_item.added",
-		"output_index": 0,
-		"item": map[string]any{
-			"type": "message", "role": "assistant",
-			"content": []any{map[string]any{"type": "output_text", "text": ""}},
-		},
-	}))
-	fmt.Fprintf(w, "event: response.output_text.delta\ndata: %s\n\n", mustJSON(map[string]any{
-		"type": "response.output_text.delta",
-		"output_index": 0, "content_index": 0,
-		"delta": text,
-	}))
-	fmt.Fprintf(w, "event: response.output_text.done\ndata: %s\n\n", mustJSON(map[string]any{
-		"type": "response.output_text.done",
-		"output_index": 0, "content_index": 0,
-		"text": text,
-	}))
-	fmt.Fprintf(w, "event: response.completed\ndata: %s\n\n", mustJSON(map[string]any{
-		"type": "response.completed",
-		"response": map[string]any{
-			"id": "mock-resp-1", "status": "completed",
-			"output": []any{map[string]any{
-				"type": "message", "role": "assistant",
-				"content": []any{map[string]any{"type": "output_text", "text": text}},
-			}},
-			"usage": map[string]any{"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
-		},
-	}))
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush()
+	events := []map[string]any{
+		{"type": "response.created", "response": map[string]any{"id": "mock-resp-1", "status": "in_progress", "output": []any{}}},
+		{"type": "response.output_item.added", "output_index": 0, "item": map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": ""}}}},
+		{"type": "response.content_part.added", "output_index": 0, "content_index": 0, "part": map[string]any{"type": "output_text", "text": ""}},
+		{"type": "response.output_text.delta", "output_index": 0, "content_index": 0, "delta": text},
+		{"type": "response.output_text.done", "output_index": 0, "content_index": 0, "text": text},
+		{"type": "response.content_part.done", "output_index": 0, "content_index": 0, "part": map[string]any{"type": "output_text", "text": text}},
+		{"type": "response.output_item.done", "output_index": 0, "item": map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": text}}}},
+		{"type": "response.completed", "response": map[string]any{"id": "mock-resp-1", "status": "completed", "output": []any{map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": text}}}}, "usage": map[string]any{"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}}},
+	}
+
+	for _, evt := range events {
+		evtType, _ := evt["type"].(string)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtType, mustJSON(evt))
+		if canFlush {
+			flusher.Flush()
+		}
+	}
+	// Close the connection so the client sees EOF
+	if hj, ok := w.(http.Hijacker); ok {
+		conn, buf, err := hj.Hijack()
+		if err == nil {
+			buf.Flush()
+			conn.Close()
+		}
 	}
 }
 
@@ -256,7 +255,10 @@ func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 	text := s.getResponse()
 
 	if stream {
+		flusher, canFlush := w.(http.Flusher)
 		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(200)
 
 		events := []string{
@@ -284,9 +286,16 @@ func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, e := range events {
 			fmt.Fprint(w, e)
+			if canFlush {
+				flusher.Flush()
+			}
 		}
-		if f, ok := w.(http.Flusher); ok {
-			f.Flush()
+		if hj, ok := w.(http.Hijacker); ok {
+			conn, buf, err := hj.Hijack()
+			if err == nil {
+				buf.Flush()
+				conn.Close()
+			}
 		}
 		return
 	}
