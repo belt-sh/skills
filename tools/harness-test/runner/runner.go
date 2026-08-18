@@ -38,7 +38,10 @@ type Runner struct {
 	mode       Mode
 	failed     bool
 	result     Result
+	lastOutput string
 }
+
+var originalHome = os.Getenv("HOME")
 
 func New(h harness.Harness, srv *server.MockServer, baseURL string) *Runner {
 	return &Runner{
@@ -111,6 +114,11 @@ func (r *Runner) finish() Result {
 }
 
 func (r *Runner) setupHome() {
+	if r.harness.PreserveHome {
+		r.home = originalHome
+		os.Setenv("HOME", originalHome)
+		return
+	}
 	dir, err := os.MkdirTemp("", "harness-test-"+r.harness.Name+"-")
 	if err != nil {
 		r.fail("create temp home: " + err.Error())
@@ -150,7 +158,13 @@ func (r *Runner) writeConfigFiles() {
 	for _, cf := range r.harness.ConfigFiles {
 		path := filepath.Join(r.home, cf.Path)
 		os.MkdirAll(filepath.Dir(path), 0755)
-		os.WriteFile(path, []byte(r.expand(cf.Content)), 0644)
+		content := r.expand(cf.Content)
+		os.WriteFile(path, []byte(content), 0644)
+		if r.harness.NeedsGitRepo {
+			projPath := filepath.Join(r.ensureGitRepo(), cf.Path)
+			os.MkdirAll(filepath.Dir(projPath), 0755)
+			os.WriteFile(projPath, []byte(content), 0644)
+		}
 	}
 }
 
@@ -191,10 +205,12 @@ func (r *Runner) writeHooks() {
 
 	case harness.YAML:
 		filename = "config.yaml"
-		contextJSON := fmt.Sprintf(`{"context": "The project codename is %s."}`, r.injectCode)
-		yamlPromptCmd := fmt.Sprintf(`echo PROMPT >> %s && echo '%s'`, logPath, contextJSON)
-		content = fmt.Sprintf("model:\n  provider: openrouter\n  name: %s\nhooks:\n  %s:\n    - command: \"%s\"\n      timeout: 5\nhooks_auto_accept: true\n",
-			r.harness.DefaultModel, r.harness.Events.PromptSubmit, yamlPromptCmd)
+		scriptPath := filepath.Join(r.home, ".hermes", "test-hook.sh")
+		os.MkdirAll(filepath.Dir(scriptPath), 0755)
+		scriptContent := fmt.Sprintf("#!/bin/sh\ncat - >/dev/null\necho PROMPT >> %s\nprintf '{\"context\": \"The project codename is %s.\"}\\n'\n", logPath, r.injectCode)
+		os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+		content = fmt.Sprintf("model:\n  default: %s\n  provider: openrouter\n  base_url: %s/v1\nhooks:\n  %s:\n    - command: %s\n      timeout: 5\nhooks_auto_accept: true\n",
+			r.harness.DefaultModel, r.baseURL, r.harness.Events.PromptSubmit, scriptPath)
 
 	case harness.TSExtension:
 		filename = "belt-test.ts"
@@ -213,7 +229,13 @@ func (r *Runner) writeHooks() {
 	if r.harness.HookFileName != "" && filename == "belt.json" {
 		filename = r.harness.HookFileName
 	}
-	os.WriteFile(filepath.Join(hookDir, filename), []byte(content), 0644)
+	hookFile := filepath.Join(hookDir, filename)
+	os.WriteFile(hookFile, []byte(content), 0644)
+	if r.harness.NeedsGitRepo {
+		projHookDir := filepath.Join(r.ensureGitRepo(), r.harness.HookConfigDir)
+		os.MkdirAll(projHookDir, 0755)
+		os.WriteFile(filepath.Join(projHookDir, filename), []byte(content), 0644)
+	}
 	r.pass(fmt.Sprintf("hooks configured (code: %s)", r.injectCode))
 }
 
@@ -280,6 +302,14 @@ func (r *Runner) runHeadless() {
 	}
 
 	out, err := cmd.CombinedOutput()
+	r.lastOutput = string(out)
+	if os.Getenv("HARNESS_DEBUG") != "" {
+		if len(out) > 0 {
+			fmt.Printf("    [debug] output:\n%s\n", r.lastOutput)
+		} else {
+			fmt.Printf("    [debug] no output, err=%v\n", err)
+		}
+	}
 	if err != nil && len(out) > 0 {
 		r.pass(fmt.Sprintf("headless produced output (%d bytes, exit: %v)", len(out), err))
 	} else if err != nil {
@@ -333,6 +363,11 @@ func (r *Runner) runInteractive() {
 func (r *Runner) checkHookEvents(phase string) {
 	fmt.Printf("[phase] hook events (%s)\n", phase)
 
+	if r.harness.PreserveHome {
+		r.checkHookEventsFromOutput(phase)
+		return
+	}
+
 	data, err := os.ReadFile("/tmp/belt-hook-events.log")
 	if err != nil {
 		if phase == "headless" && !r.harness.HooksInHeadless {
@@ -355,6 +390,21 @@ func (r *Runner) checkHookEvents(phase string) {
 		r.skip(phase + ": stop hook not fired")
 	}
 
+	if entries := r.server.Log(); len(entries) > 0 {
+		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, len(entries)))
+	}
+}
+
+func (r *Runner) checkHookEventsFromOutput(phase string) {
+	out := r.lastOutput
+	if strings.Contains(out, "hook: "+r.harness.Events.PromptSubmit) {
+		r.pass(phase + ": prompt hook fired (output)")
+	} else {
+		r.skip(phase + ": prompt hook not detected in output")
+	}
+	if r.harness.Events.Stop != "" && strings.Contains(out, "hook: "+r.harness.Events.Stop) {
+		r.pass(phase + ": stop hook fired (output)")
+	}
 	if entries := r.server.Log(); len(entries) > 0 {
 		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, len(entries)))
 	}

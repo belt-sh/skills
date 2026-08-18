@@ -65,6 +65,9 @@ type Harness struct {
 	ExitCommand        string
 	HooksInInteractive bool
 
+	// Setup
+	PreserveHome bool // don't override HOME (harness needs installed plugins)
+
 	// Capabilities
 	CanInject bool
 }

@@ -12,7 +12,7 @@ var All = map[string]Harness{
 		HookFormat:    JSONNested,
 		HookConfigDir: ".claude",
 		HookFileName:  "settings.json",
-		HookWrapper:   `{"permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]},"hooks":%s}`,
+		HookWrapper:   `{"permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]},"skipDangerousModePermissionPrompt":true,"hooks":%s}`,
 		Events:        Events{PromptSubmit: "UserPromptSubmit", Stop: "Stop"},
 		SkillsDir:          ".claude/skills",
 		HeadlessCmd:         []string{"claude", "-p"},
@@ -32,24 +32,20 @@ var All = map[string]Harness{
 		DefaultModel:    "gpt-4o-mini",
 		HookFormat:      JSONNested,
 		HookConfigDir:   ".codex",
+		HookFileName:    "hooks.json",
 		Events:          Events{PromptSubmit: "UserPromptSubmit", Stop: "Stop"},
-		ConfigFiles: []ConfigFile{
-			{Path: ".codex/config.toml", Content: `model = "{{.Model}}"
-model_provider = "mock"
-
-[model_providers.mock]
-name = "Mock"
-base_url = "{{.BaseURL}}"
-env_key = "OPENAI_API_KEY"
-wire_api = "responses"
-
-[features]
-hooks = true
-`},
-		},
+		PreserveHome:    true,
 		SkillsDir:          ".agents/skills",
 		HeadlessCmd:         []string{"codex", "exec"},
-		HeadlessModelArgs:   []string{"--dangerously-bypass-hook-trust"},
+		HeadlessModelArgs: []string{
+			"--dangerously-bypass-hook-trust",
+			"-c", `model="{{.Model}}"`,
+			"-c", `model_provider="mock"`,
+			"-c", `model_providers.mock.name="Mock"`,
+			"-c", `model_providers.mock.base_url="{{.BaseURL}}"`,
+			"-c", `model_providers.mock.env_key="OPENAI_API_KEY"`,
+			"-c", `model_providers.mock.wire_api="responses"`,
+		},
 		PromptViaStdin:      true,
 		NeedsGitRepo:        true,
 		HooksInHeadless:     true,
@@ -127,7 +123,9 @@ hooks = true
 	"hermes": {
 		Name: "hermes", Binary: "hermes",
 		APIFormat:    OpenAI,
-		EndpointEnvVars: map[string]string{},
+		EndpointEnvVars: map[string]string{
+			"OPENROUTER_BASE_URL": "{{.BaseURL}}/v1",
+		},
 		APIKeyEnvVar: "OPENROUTER_API_KEY",
 		DefaultModel: "openai/gpt-4o-mini",
 		HookFormat:    YAML,
@@ -136,8 +134,8 @@ hooks = true
 		ConfigFiles: []ConfigFile{
 			{Path: ".hermes/.env", Content: "OPENROUTER_API_KEY={{.APIKey}}\n"},
 		},
-		HeadlessCmd:          []string{"hermes", "-z"},
-		HeadlessModelArgs:    []string{"-m", "{{.Model}}", "--provider", "openrouter", "--accept-hooks", "--cli"},
+		HeadlessCmd:          []string{"hermes", "chat", "-q"},
+		HeadlessModelArgs:    []string{"-m", "{{.Model}}", "--provider", "openrouter", "--accept-hooks"},
 		HooksInHeadless:      true,
 		InteractiveCmd:       []string{"hermes"},
 		ExitCommand:          "/exit",
