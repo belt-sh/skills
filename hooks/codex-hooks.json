@@ -37,7 +37,6 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "exec_command",
         "hooks": [
           {
             "type": "command",
@@ -63,8 +62,7 @@
           {
             "type": "command",
             "command": "${PLUGIN_ROOT}/bin/hook-stop.sh",
-            "timeout": 60,
-            "async": true
+            "timeout": 60
           }
         ]
       }
@@ -75,8 +73,7 @@
           {
             "type": "command",
             "command": "${PLUGIN_ROOT}/bin/hook-pre-compact.sh",
-            "timeout": 60,
-            "async": true
+            "timeout": 60
           }
         ]
       }
