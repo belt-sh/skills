@@ -29,7 +29,6 @@ type MockServer struct {
 	log          []LogEntry
 	response     string // default response text
 	toolCallMode bool   // respond with a tool call first, then text
-	toolCallSeen bool   // track if we already sent the tool call
 }
 
 func New() *MockServer {
@@ -79,17 +78,22 @@ func (s *MockServer) SetToolCallMode(on bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.toolCallMode = on
-	s.toolCallSeen = false
 }
 
 func (s *MockServer) shouldToolCall() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.toolCallMode && !s.toolCallSeen {
-		s.toolCallSeen = true
+	if s.toolCallMode {
+		s.toolCallMode = false
 		return true
 	}
 	return false
+}
+
+func (s *MockServer) LogCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.log)
 }
 
 func (s *MockServer) Log() []LogEntry {
@@ -270,11 +274,6 @@ func (s *MockServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *MockServer) streamResponsesText(w http.ResponseWriter, text string) {
-	flusher, canFlush := w.(http.Flusher)
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.WriteHeader(200)
-
 	events := []map[string]any{
 		{"type": "response.created", "response": map[string]any{"id": "mock-resp-1", "status": "in_progress", "output": []any{}}},
 		{"type": "response.output_item.added", "output_index": 0, "item": map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": ""}}}},
@@ -285,22 +284,10 @@ func (s *MockServer) streamResponsesText(w http.ResponseWriter, text string) {
 		{"type": "response.output_item.done", "output_index": 0, "item": map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": text}}}},
 		{"type": "response.completed", "response": map[string]any{"id": "mock-resp-1", "status": "completed", "output": []any{map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": text}}}}, "usage": map[string]any{"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}}},
 	}
-
-	for _, evt := range events {
-		evtType, _ := evt["type"].(string)
-		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtType, mustJSON(evt))
-		if canFlush {
-			flusher.Flush()
-		}
-	}
+	streamTypedSSE(w, events)
 }
 
 func (s *MockServer) handleResponsesToolCall(w http.ResponseWriter) {
-	flusher, canFlush := w.(http.Flusher)
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.WriteHeader(200)
-
 	args := `{"cmd":"cat README.md"}`
 	fcItem := map[string]any{
 		"type": "function_call", "id": "fc_mock_1", "call_id": "call_mock_1",
@@ -319,14 +306,7 @@ func (s *MockServer) handleResponsesToolCall(w http.ResponseWriter) {
 		{"type": "response.output_item.done", "response_id": "mock-resp-tc", "output_index": 0, "item": fcItemDone},
 		{"type": "response.completed", "response": map[string]any{"id": "mock-resp-tc", "status": "completed", "output": []any{fcItemDone}, "usage": map[string]any{"input_tokens": 10, "output_tokens": 12, "total_tokens": 22}}},
 	}
-
-	for _, evt := range events {
-		evtType, _ := evt["type"].(string)
-		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtType, mustJSON(evt))
-		if canFlush {
-			flusher.Flush()
-		}
-	}
+	streamTypedSSE(w, events)
 }
 
 // POST /v1/messages — Anthropic format
@@ -354,42 +334,7 @@ func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if stream {
-		flusher, canFlush := w.(http.Flusher)
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.WriteHeader(200)
-
-		events := []string{
-			fmt.Sprintf("event: message_start\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "message_start",
-				"message": map[string]any{"id": "mock-1", "type": "message", "role": "assistant", "content": []any{}, "model": model},
-			})),
-			fmt.Sprintf("event: content_block_start\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "content_block_start", "index": 0,
-				"content_block": map[string]any{"type": "text", "text": ""},
-			})),
-			fmt.Sprintf("event: content_block_delta\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "content_block_delta", "index": 0,
-				"delta": map[string]any{"type": "text_delta", "text": text},
-			})),
-			fmt.Sprintf("event: content_block_stop\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "content_block_stop", "index": 0,
-			})),
-			fmt.Sprintf("event: message_delta\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "message_delta",
-				"delta": map[string]any{"stop_reason": "end_turn"},
-				"usage": map[string]any{"output_tokens": 5},
-			})),
-			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
-		}
-		for _, e := range events {
-			fmt.Fprint(w, e)
-			if canFlush {
-				flusher.Flush()
-			}
-		}
-		// stream done — flush is sufficient, [DONE] / message_stop signals EOF
+		streamRawSSE(w, anthropicTextEvents(model, text))
 		return
 	}
 
@@ -408,11 +353,7 @@ func (s *MockServer) handleAnthropicToolCall(w http.ResponseWriter, model string
 		"input": map[string]any{"file_path": "README.md"},
 	}
 	if stream {
-		flusher, canFlush := w.(http.Flusher)
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.WriteHeader(200)
-		events := []string{
+		streamRawSSE(w, []string{
 			fmt.Sprintf("event: message_start\ndata: %s\n\n", mustJSON(map[string]any{
 				"type": "message_start",
 				"message": map[string]any{"id": "mock-tc", "type": "message", "role": "assistant", "content": []any{}, "model": model},
@@ -434,14 +375,7 @@ func (s *MockServer) handleAnthropicToolCall(w http.ResponseWriter, model string
 				"usage": map[string]any{"output_tokens": 15},
 			})),
 			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
-		}
-		for _, e := range events {
-			fmt.Fprint(w, e)
-			if canFlush {
-				flusher.Flush()
-			}
-		}
-		// stream done — flush is sufficient, [DONE] / message_stop signals EOF
+		})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -470,7 +404,7 @@ func (s *MockServer) handleGetLog(w http.ResponseWriter, r *http.Request) {
 
 func (s *MockServer) handleLogCount(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{"count": len(s.Log())})
+	json.NewEncoder(w).Encode(map[string]int{"count": s.LogCount()})
 }
 
 func (s *MockServer) handleClearLog(w http.ResponseWriter, r *http.Request) {
@@ -528,6 +462,61 @@ func (s *MockServer) handleSessionUpdate(w http.ResponseWriter, r *http.Request)
 	s.record(r, body)
 	w.WriteHeader(200)
 	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func anthropicTextEvents(model, text string) []string {
+	return []string{
+		fmt.Sprintf("event: message_start\ndata: %s\n\n", mustJSON(map[string]any{
+			"type": "message_start",
+			"message": map[string]any{"id": "mock-1", "type": "message", "role": "assistant", "content": []any{}, "model": model},
+		})),
+		fmt.Sprintf("event: content_block_start\ndata: %s\n\n", mustJSON(map[string]any{
+			"type": "content_block_start", "index": 0,
+			"content_block": map[string]any{"type": "text", "text": ""},
+		})),
+		fmt.Sprintf("event: content_block_delta\ndata: %s\n\n", mustJSON(map[string]any{
+			"type": "content_block_delta", "index": 0,
+			"delta": map[string]any{"type": "text_delta", "text": text},
+		})),
+		fmt.Sprintf("event: content_block_stop\ndata: %s\n\n", mustJSON(map[string]any{
+			"type": "content_block_stop", "index": 0,
+		})),
+		fmt.Sprintf("event: message_delta\ndata: %s\n\n", mustJSON(map[string]any{
+			"type": "message_delta",
+			"delta": map[string]any{"stop_reason": "end_turn"},
+			"usage": map[string]any{"output_tokens": 5},
+		})),
+		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+	}
+}
+
+func beginSSE(w http.ResponseWriter) http.Flusher {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(200)
+	f, _ := w.(http.Flusher)
+	return f
+}
+
+func streamTypedSSE(w http.ResponseWriter, events []map[string]any) {
+	f := beginSSE(w)
+	for _, evt := range events {
+		evtType, _ := evt["type"].(string)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtType, mustJSON(evt))
+		if f != nil {
+			f.Flush()
+		}
+	}
+}
+
+func streamRawSSE(w http.ResponseWriter, events []string) {
+	f := beginSSE(w)
+	for _, e := range events {
+		fmt.Fprint(w, e)
+		if f != nil {
+			f.Flush()
+		}
+	}
 }
 
 func mustJSON(v any) string {

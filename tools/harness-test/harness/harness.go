@@ -35,8 +35,9 @@ type Harness struct {
 	Binary  string // CLI binary name
 
 	// Install
-	InstallCmd  []string   // command to install the CLI if missing
-	PostInstall [][]string // commands to run after install (e.g. register plugin marketplace)
+	InstallCmd     []string   // command to install the CLI if missing
+	InstallBinDirs []string   // dirs relative to $HOME to add to PATH after install
+	PostInstall    [][]string // commands to run after install (e.g. register plugin marketplace)
 
 	// API
 	APIFormat      APIFormat

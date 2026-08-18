@@ -1,50 +1,7 @@
 services:
-  # Run all harnesses against the built-in mock server (no API keys needed)
-  test-mock:
+  test:
     build:
       context: ..
       dockerfile: tests/Dockerfile
-    command: ["--harness", "all", "--mode", "both"]
-
-  # Run specific harness
-  test-claude:
-    build:
-      context: ..
-      dockerfile: tests/Dockerfile
-    command: ["--harness", "claude", "--mode", "both"]
-
-  test-codex:
-    build:
-      context: ..
-      dockerfile: tests/Dockerfile
-    command: ["--harness", "codex", "--mode", "both"]
-
-  test-copilot:
-    build:
-      context: ..
-      dockerfile: tests/Dockerfile
-    command: ["--harness", "copilot", "--mode", "both"]
-
-  test-grok:
-    build:
-      context: ..
-      dockerfile: tests/Dockerfile
-    command: ["--harness", "grok", "--mode", "both"]
-
-  test-hermes:
-    build:
-      context: ..
-      dockerfile: tests/Dockerfile
-    command: ["--harness", "hermes", "--mode", "both"]
-
-  test-pi:
-    build:
-      context: ..
-      dockerfile: tests/Dockerfile
-    command: ["--harness", "pi", "--mode", "both"]
-
-  test-opencode:
-    build:
-      context: ..
-      dockerfile: tests/Dockerfile
-    command: ["--harness", "opencode", "--mode", "both"]
+    # Default: --harness all --mode both
+    # Override: docker compose run test --harness claude --mode headless

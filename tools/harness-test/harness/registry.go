@@ -1,5 +1,14 @@
 package harness
 
+var codexProviderArgs = []string{
+	"-c", `model="{{.Model}}"`,
+	"-c", `model_provider="mock"`,
+	"-c", `model_providers.mock.name="Mock"`,
+	"-c", `model_providers.mock.base_url="{{.BaseURL}}"`,
+	"-c", `model_providers.mock.env_key="OPENAI_API_KEY"`,
+	"-c", `model_providers.mock.wire_api="responses"`,
+}
+
 var All = map[string]Harness{
 	"claude": {
 		Name: "claude", Binary: "claude",
@@ -63,29 +72,17 @@ var All = map[string]Harness{
 		PreserveHome:    true,
 		SkillsDir:          ".agents/skills",
 		HeadlessCmd:         []string{"codex", "exec"},
-		HeadlessModelArgs: []string{
+		HeadlessModelArgs: append([]string{
 			"--dangerously-bypass-hook-trust",
 			"--dangerously-bypass-approvals-and-sandbox",
-			"-c", `model="{{.Model}}"`,
-			"-c", `model_provider="mock"`,
-			"-c", `model_providers.mock.name="Mock"`,
-			"-c", `model_providers.mock.base_url="{{.BaseURL}}"`,
-			"-c", `model_providers.mock.env_key="OPENAI_API_KEY"`,
-			"-c", `model_providers.mock.wire_api="responses"`,
-		},
+		}, codexProviderArgs...),
 		PromptViaStdin:      true,
 		NeedsGitRepo:        true,
 		HooksInHeadless:     true,
 		InteractiveCmd: []string{"codex"},
-		InteractiveArgs: []string{
+		InteractiveArgs: append([]string{
 			"--dangerously-bypass-hook-trust",
-			"-c", `model="{{.Model}}"`,
-			"-c", `model_provider="mock"`,
-			"-c", `model_providers.mock.name="Mock"`,
-			"-c", `model_providers.mock.base_url="{{.BaseURL}}"`,
-			"-c", `model_providers.mock.env_key="OPENAI_API_KEY"`,
-			"-c", `model_providers.mock.wire_api="responses"`,
-		},
+		}, codexProviderArgs...),
 		ExitCommand:                "/exit",
 		HooksInInteractive:         true,
 		NeedsAuthForInteractive:    true,
@@ -117,7 +114,8 @@ var All = map[string]Harness{
 	},
 	"grok": {
 		Name: "grok", Binary: "grok",
-		InstallCmd: []string{"sh", "-c", "curl -fsSL https://x.ai/cli/install.sh | bash"},
+		InstallCmd:     []string{"sh", "-c", "curl -fsSL https://x.ai/cli/install.sh | bash"},
+		InstallBinDirs: []string{".grok/bin"},
 		APIFormat: OpenAI,
 		EndpointEnvVars: map[string]string{
 			"GROK_CLI_CHAT_PROXY_BASE_URL": "{{.BaseURL}}",
@@ -170,7 +168,8 @@ var All = map[string]Harness{
 	},
 	"hermes": {
 		Name: "hermes", Binary: "hermes",
-		InstallCmd: []string{"pip", "install", "--break-system-packages", "hermes-agent"},
+		InstallCmd:     []string{"pip", "install", "--break-system-packages", "hermes-agent"},
+		InstallBinDirs: []string{".local/bin"},
 		APIFormat:    OpenAI,
 		EndpointEnvVars: map[string]string{
 			"OPENROUTER_BASE_URL": "{{.BaseURL}}/v1",

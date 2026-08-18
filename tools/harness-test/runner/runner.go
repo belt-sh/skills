@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -155,11 +156,12 @@ func (r *Runner) checkBinary() {
 			r.fail(fmt.Sprintf("install %s: %v\n%s", r.harness.Binary, installErr, string(out)))
 			return
 		}
-		extraPaths := []string{
-			filepath.Join(r.home, ".local", "bin"),
-			filepath.Join(r.home, ".grok", "bin"),
+		for _, d := range r.harness.InstallBinDirs {
+			p := filepath.Join(r.home, d)
+			if !strings.Contains(os.Getenv("PATH"), p) {
+				os.Setenv("PATH", p+":"+os.Getenv("PATH"))
+			}
 		}
-		os.Setenv("PATH", strings.Join(extraPaths, ":")+":"+os.Getenv("PATH"))
 		if _, err := exec.LookPath(r.harness.Binary); err != nil {
 			r.fail(r.harness.Binary + " not found after install")
 			return
@@ -189,20 +191,23 @@ func (r *Runner) setupEndpoint() {
 	r.server.ClearLog()
 }
 
+func (r *Runner) writeToHome(relPath string, content string) {
+	path := filepath.Join(r.home, relPath)
+	os.MkdirAll(filepath.Dir(path), 0755)
+	os.WriteFile(path, []byte(content), 0644)
+	if r.harness.NeedsGitRepo {
+		projPath := filepath.Join(r.ensureGitRepo(), relPath)
+		os.MkdirAll(filepath.Dir(projPath), 0755)
+		os.WriteFile(projPath, []byte(content), 0644)
+	}
+}
+
 func (r *Runner) writeConfigFiles() {
 	if len(r.harness.ConfigFiles) == 0 {
 		return
 	}
 	for _, cf := range r.harness.ConfigFiles {
-		path := filepath.Join(r.home, cf.Path)
-		os.MkdirAll(filepath.Dir(path), 0755)
-		content := r.expand(cf.Content)
-		os.WriteFile(path, []byte(content), 0644)
-		if r.harness.NeedsGitRepo {
-			projPath := filepath.Join(r.ensureGitRepo(), cf.Path)
-			os.MkdirAll(filepath.Dir(projPath), 0755)
-			os.WriteFile(projPath, []byte(content), 0644)
-		}
+		r.writeToHome(cf.Path, r.expand(cf.Content))
 	}
 }
 
@@ -240,55 +245,37 @@ func (r *Runner) writeHooks() {
 
 	case harness.YAML:
 		filename = "config.yaml"
-		hookDir := filepath.Join(r.home, ".hermes", "test-hooks")
-		os.MkdirAll(hookDir, 0755)
+		scriptDir := filepath.Join(r.home, ".hermes", "test-hooks")
+		os.MkdirAll(scriptDir, 0755)
 
-		evts := r.harness.Events
 		yamlHooks := ""
-		entries := []struct{ event, tag string }{
-			{evts.PromptSubmit, "PROMPT"},
-			{evts.PreToolUse, "PRE_TOOL"},
-			{evts.PostToolUse, "POST_TOOL"},
-			{evts.Stop, "STOP"},
-		}
-		for _, e := range entries {
-			if e.event == "" {
-				continue
-			}
-			script := filepath.Join(hookDir, e.tag+".sh")
-			body := fmt.Sprintf("#!/bin/sh\ncat - >/dev/null\necho %s >> %s\n", e.tag, logPath)
-			if e.tag == "PROMPT" {
+		for _, e := range r.eventEntries() {
+			script := filepath.Join(scriptDir, e.Tag+".sh")
+			body := fmt.Sprintf("#!/bin/sh\ncat - >/dev/null\necho %s >> %s\n", e.Tag, logPath)
+			if e.Tag == "PROMPT" {
 				body += fmt.Sprintf("printf '{\"context\": \"The project codename is %s.\"}\\n'\n", r.injectCode)
 			}
 			os.WriteFile(script, []byte(body), 0755)
-			yamlHooks += fmt.Sprintf("  %s:\n    - command: %s\n      timeout: 5\n", e.event, script)
+			yamlHooks += fmt.Sprintf("  %s:\n    - command: %s\n      timeout: 5\n", e.Event, script)
 		}
 		content = fmt.Sprintf("model:\n  default: %s\n  provider: openrouter\n  base_url: %s/v1\nhooks:\n%shooks_auto_accept: true\n",
 			r.harness.DefaultModel, r.baseURL, yamlHooks)
 
 	case harness.TSExtension:
 		filename = "belt-test.ts"
-		evts := r.harness.Events
 		tsHooks := ""
-		tsEntries := []struct{ event, tag string }{
-			{evts.PromptSubmit, "PROMPT"},
-			{evts.Stop, "STOP"},
-		}
-		for _, e := range tsEntries {
-			if e.event == "" {
-				continue
-			}
-			if e.tag == "PROMPT" {
+		for _, e := range r.eventEntries() {
+			if e.Tag == "PROMPT" {
 				tsHooks += fmt.Sprintf(`  pi.on("%s", async (event: any) => {
     require("fs").appendFileSync("%s", "PROMPT\n");
     return { systemPrompt: (event.systemPrompt || '') + '\nThe project codename is %s.' };
   });
-`, e.event, logPath, r.injectCode)
+`, e.Event, logPath, r.injectCode)
 			} else {
 				tsHooks += fmt.Sprintf(`  pi.on("%s", async () => {
     require("fs").appendFileSync("%s", "%s\n");
   });
-`, e.event, logPath, e.tag)
+`, e.Event, logPath, e.Tag)
 			}
 		}
 		content = fmt.Sprintf("export default function (pi: any) {\n%s}\n", tsHooks)
@@ -391,8 +378,9 @@ func (r *Runner) runHeadless() {
 	} else {
 		r.fail("headless produced no output")
 	}
-	// Wait for async hooks (Stop, on_session_end) to finish writing
-	time.Sleep(3 * time.Second)
+	if r.harness.Events.Stop != "" {
+		time.Sleep(3 * time.Second)
+	}
 }
 
 func (r *Runner) runInteractive() {
@@ -420,18 +408,17 @@ func (r *Runner) runInteractive() {
 	}
 	defer session.Close()
 
-	// Wait for TUI to load, handle onboarding dialogs
 	time.Sleep(3 * time.Second)
 	for i := 0; i < 15; i++ {
-		out := stripANSI(session.Output())
+		out := session.Output()
 		if strings.Contains(out, "theme") || strings.Contains(out, "Theme") ||
 			strings.Contains(out, "onboarding") || strings.Contains(out, "style") {
-			session.SendLine("") // press Enter to accept default
+			session.SendLine("")
 			time.Sleep(3 * time.Second)
 			continue
 		}
 		if strings.Contains(out, "trust") || strings.Contains(out, "Trust") {
-			session.SendLine("") // accept trust dialog
+			session.SendLine("")
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -444,7 +431,6 @@ func (r *Runner) runInteractive() {
 
 	session.SendLine("What is the project codename? Reply ONLY the codename.")
 
-	// Wait for mock server response to appear in output
 	session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server"}, 30*time.Second)
 	time.Sleep(3 * time.Second)
 
@@ -455,8 +441,9 @@ func (r *Runner) runInteractive() {
 	session.SendCtrlC()
 	session.Wait(5 * time.Second)
 
-	// Extra wait for Stop hook to write
-	time.Sleep(2 * time.Second)
+	if r.harness.Events.Stop != "" {
+		time.Sleep(2 * time.Second)
+	}
 
 	r.lastOutput = session.Output()
 	if os.Getenv("HARNESS_DEBUG") != "" {
@@ -473,18 +460,16 @@ func (r *Runner) checkHookEvents(phase string) {
 	if data, err := os.ReadFile("/tmp/belt-hook-events.log"); err == nil {
 		logContent = string(data)
 	}
-	ptyContent := stripANSI(r.lastOutput)
 
-	type check struct {
-		tag, outputEvent, label, event string
-	}
-	checks := []check{
-		{"SESSION_START", "SessionStart", "session-start", r.harness.Events.SessionStart},
-		{"PROMPT", "UserPromptSubmit", "prompt", r.harness.Events.PromptSubmit},
-		{"PRE_TOOL", "PreToolUse", "pre-tool-use", r.harness.Events.PreToolUse},
-		{"POST_TOOL", "PostToolUse", "post-tool-use", r.harness.Events.PostToolUse},
-		{"STOP", "Stop", "stop", r.harness.Events.Stop},
-		{"PRE_COMPACT", "PreCompact", "pre-compact", r.harness.Events.PreCompact},
+	var ptyContent string
+
+	checks := []struct{ tag, label, event string }{
+		{"SESSION_START", "session-start", r.harness.Events.SessionStart},
+		{"PROMPT", "prompt", r.harness.Events.PromptSubmit},
+		{"PRE_TOOL", "pre-tool-use", r.harness.Events.PreToolUse},
+		{"POST_TOOL", "post-tool-use", r.harness.Events.PostToolUse},
+		{"STOP", "stop", r.harness.Events.Stop},
+		{"PRE_COMPACT", "pre-compact", r.harness.Events.PreCompact},
 	}
 
 	for _, c := range checks {
@@ -495,8 +480,13 @@ func (r *Runner) checkHookEvents(phase string) {
 		if logContent != "" && strings.Contains(logContent, c.tag) {
 			found = true
 		}
-		if !found && ptyContent != "" && strings.Contains(ptyContent, "hook: "+c.event) {
-			found = true
+		if !found && r.lastOutput != "" {
+			if ptyContent == "" {
+				ptyContent = stripANSI(r.lastOutput)
+			}
+			if strings.Contains(ptyContent, "hook: "+c.event) {
+				found = true
+			}
 		}
 		if found {
 			r.pass(fmt.Sprintf("%s: %s hook fired", phase, c.label))
@@ -505,9 +495,51 @@ func (r *Runner) checkHookEvents(phase string) {
 		}
 	}
 
-	if entries := r.server.Log(); len(entries) > 0 {
-		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, len(entries)))
+	if r.server.LogCount() > 0 {
+		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, r.server.LogCount()))
 	}
+}
+
+type eventEntry struct {
+	Event string
+	Tag   string
+}
+
+func (r *Runner) eventEntries() []eventEntry {
+	evts := r.harness.Events
+	all := []eventEntry{
+		{evts.SessionStart, "SESSION_START"},
+		{evts.PromptSubmit, "PROMPT"},
+		{evts.PreToolUse, "PRE_TOOL"},
+		{evts.PostToolUse, "POST_TOOL"},
+		{evts.Stop, "STOP"},
+		{evts.PreCompact, "PRE_COMPACT"},
+	}
+	var result []eventEntry
+	for _, e := range all {
+		if e.Event != "" {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
+func (r *Runner) buildNestedHooksJSON(logPath string) string {
+	entries := r.eventEntries()
+	parts := []string{}
+	for _, e := range entries {
+		cmd := fmt.Sprintf("echo %s >> %s", e.Tag, logPath)
+		if e.Tag == "PROMPT" {
+			cmd += fmt.Sprintf(" && echo 'The project codename is %s.'", r.injectCode)
+		}
+		hook := fmt.Sprintf(`{"type":"command","command":"%s","timeout":5}`, cmd)
+		if e.Tag == "PRE_TOOL" || e.Tag == "POST_TOOL" {
+			parts = append(parts, fmt.Sprintf(`"%s":[{"matcher":"Read","hooks":[%s]}]`, e.Event, hook))
+		} else {
+			parts = append(parts, fmt.Sprintf(`"%s":[{"hooks":[%s]}]`, e.Event, hook))
+		}
+	}
+	return "{" + strings.Join(parts, ",") + "}"
 }
 
 func (r *Runner) expand(tmpl string) string {
@@ -523,56 +555,10 @@ func (r *Runner) expand(tmpl string) string {
 	return s
 }
 
-func (r *Runner) buildNestedHooksJSON(logPath string) string {
-	evts := r.harness.Events
-	entries := []struct {
-		name, tag string
-		matcher   string
-	}{
-		{evts.SessionStart, "SESSION_START", ""},
-		{evts.PromptSubmit, "PROMPT", ""},
-		{evts.PreToolUse, "PRE_TOOL", "Read"},
-		{evts.PostToolUse, "POST_TOOL", "Read"},
-		{evts.Stop, "STOP", ""},
-		{evts.PreCompact, "PRE_COMPACT", ""},
-	}
-	parts := []string{}
-	for _, e := range entries {
-		if e.name == "" {
-			continue
-		}
-		cmd := fmt.Sprintf("echo %s >> %s", e.tag, logPath)
-		if e.tag == "PROMPT" {
-			cmd += fmt.Sprintf(" && echo 'The project codename is %s.'", r.injectCode)
-		}
-		hook := fmt.Sprintf(`{"type":"command","command":"%s","timeout":5}`, cmd)
-		if e.matcher != "" {
-			parts = append(parts, fmt.Sprintf(`"%s":[{"matcher":"%s","hooks":[%s]}]`, e.name, e.matcher, hook))
-		} else {
-			parts = append(parts, fmt.Sprintf(`"%s":[{"hooks":[%s]}]`, e.name, hook))
-		}
-	}
-	return "{" + strings.Join(parts, ",") + "}"
-}
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
 func stripANSI(s string) string {
-	result := make([]byte, 0, len(s))
-	i := 0
-	for i < len(s) {
-		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[' {
-			i += 2
-			for i < len(s) && !((s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= 'a' && s[i] <= 'z')) {
-				i++
-			}
-			if i < len(s) {
-				i++
-			}
-		} else {
-			result = append(result, s[i])
-			i++
-		}
-	}
-	return string(result)
+	return ansiRe.ReplaceAllString(s, "")
 }
 
 func run(dir string, name string, args ...string) error {
