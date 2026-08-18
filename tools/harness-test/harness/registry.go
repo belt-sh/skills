@@ -65,6 +65,7 @@ var All = map[string]Harness{
 		HeadlessCmd:         []string{"codex", "exec"},
 		HeadlessModelArgs: []string{
 			"--dangerously-bypass-hook-trust",
+			"--dangerously-bypass-approvals-and-sandbox",
 			"-c", `model="{{.Model}}"`,
 			"-c", `model_provider="mock"`,
 			"-c", `model_providers.mock.name="Mock"`,

@@ -23,13 +23,48 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PLUGIN_ROOT}/bin/hook-skill-use.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "exec_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PLUGIN_ROOT}/bin/hook-post-tool.sh",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PLUGIN_ROOT}/bin/hook-skill-post.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
             "command": "${PLUGIN_ROOT}/bin/hook-stop.sh",
-            "timeout": 60
+            "timeout": 60,
+            "async": true
           }
         ]
       }
@@ -40,7 +75,8 @@
           {
             "type": "command",
             "command": "${PLUGIN_ROOT}/bin/hook-pre-compact.sh",
-            "timeout": 60
+            "timeout": 60,
+            "async": true
           }
         ]
       }

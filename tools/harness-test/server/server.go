@@ -260,12 +260,19 @@ func (s *MockServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	s.record(r, body)
 
-	text := s.getResponse()
-	flusher, canFlush := w.(http.Flusher)
+	if s.shouldToolCall() {
+		s.handleResponsesToolCall(w)
+		return
+	}
 
+	text := s.getResponse()
+	s.streamResponsesText(w, text)
+}
+
+func (s *MockServer) streamResponsesText(w http.ResponseWriter, text string) {
+	flusher, canFlush := w.(http.Flusher)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(200)
 
 	events := []map[string]any{
@@ -286,7 +293,40 @@ func (s *MockServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
-	// response.completed signals EOF — client closes the reader
+}
+
+func (s *MockServer) handleResponsesToolCall(w http.ResponseWriter) {
+	flusher, canFlush := w.(http.Flusher)
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(200)
+
+	args := `{"cmd":"cat README.md"}`
+	fcItem := map[string]any{
+		"type": "function_call", "id": "fc_mock_1", "call_id": "call_mock_1",
+		"name": "exec_command", "arguments": "", "status": "in_progress",
+	}
+	fcItemDone := map[string]any{
+		"type": "function_call", "id": "fc_mock_1", "call_id": "call_mock_1",
+		"name": "exec_command", "arguments": args, "status": "completed",
+	}
+
+	events := []map[string]any{
+		{"type": "response.created", "response": map[string]any{"id": "mock-resp-tc", "status": "in_progress", "output": []any{}}},
+		{"type": "response.output_item.added", "response_id": "mock-resp-tc", "output_index": 0, "item": fcItem},
+		{"type": "response.function_call_arguments.delta", "response_id": "mock-resp-tc", "item_id": "fc_mock_1", "output_index": 0, "delta": args},
+		{"type": "response.function_call_arguments.done", "response_id": "mock-resp-tc", "item_id": "fc_mock_1", "output_index": 0, "arguments": args},
+		{"type": "response.output_item.done", "response_id": "mock-resp-tc", "output_index": 0, "item": fcItemDone},
+		{"type": "response.completed", "response": map[string]any{"id": "mock-resp-tc", "status": "completed", "output": []any{fcItemDone}, "usage": map[string]any{"input_tokens": 10, "output_tokens": 12, "total_tokens": 22}}},
+	}
+
+	for _, evt := range events {
+		evtType, _ := evt["type"].(string)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtType, mustJSON(evt))
+		if canFlush {
+			flusher.Flush()
+		}
+	}
 }
 
 // POST /v1/messages — Anthropic format
