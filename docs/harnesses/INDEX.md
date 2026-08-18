@@ -1,95 +1,81 @@
 # Harness Index
 
-## Status legend
+## Test status
 
-- **Supported** — `belt init <agent>` works today
-- **Marketplace** — plugin repo manifest exists for the harness's marketplace
-- **Planned** — research done, implementation straightforward
-- **Research** — needs more investigation or has blockers
+All tests run in Docker containers via `harness-test --harness all`. The Go binary
+installs the CLI, starts a mock inference server, configures hooks, runs the harness
+in headless and interactive modes, and verifies hooks fire and API requests arrive.
 
-## Summary
-
-| Harness | Binary | API Format | Hook Format | Hook Events | Belt Status | Marketplace | Test Endpoint |
+| Harness | Binary | API | Hook Format | Events Mapped | Hooks Fire | Mock Server | Install |
 |---|---|---|---|---|---|---|---|
-| [Claude Code](./claude-code.md) | `claude` | Anthropic | JSON (nested) | 7 | Supported | `.claude-plugin/` | `ANTHROPIC_BASE_URL` |
-| [Codex](./codex.md) | `codex` | OpenAI | JSON (nested) | 4 | Supported | `.codex-plugin/` | `OPENAI_BASE_URL` |
-| [Cursor](./cursor.md) | `cursor` | Cursor backend | JSON (flat) | 7 | Supported | `.cursor-plugin/` | None (routed) |
-| [Gemini CLI](./gemini.md) | `gemini` | Google | JSON | TBD | Supported | — | TBD |
-| [OpenCode](./opencode.md) | `opencode` | OpenAI | TS plugin | TBD | Supported | — | `OPENAI_BASE_URL` |
-| [Pi](./pi.md) | `pi` | Custom | TS extension | TBD | Supported | — | TBD |
-| [Windsurf](./windsurf.md) | `windsurf` | OpenAI | JSON (flat) | TBD | Supported | — | TBD |
-| [Grok CLI](./grok.md) | `grok` | OpenAI | JSON (nested) | 17 | Planned | Marketplace open | `GROK_BASE_URL` |
-| [Copilot CLI](./copilot.md) | `copilot` | OpenAI | JSON (nested) | 14 | Planned | Marketplace open | `COPILOT_PROVIDER_BASE_URL` |
-| [Kimi Code CLI](./kimi.md) | `kimi` | Multi-provider | TOML | 20 | Planned | — | TOML `base_url` |
-| [Droid](./droid.md) | `droid` | Multi-provider | JSON (nested) | 7 | Planned | Marketplace open | JSON `customModels` |
-| [Qoder CLI](./qoder.md) | `qodercli` | Custom | JSON (nested) | 20+ | Planned | Marketplace open | TBD |
-| [MastraCode](./mastracode.md) | `mastracode` | Multi-provider | JSON | 10 | Research | — | TBD |
-| [OMP](./omp.md) | `omp` | Multi-provider | TS extension | TBD | Research | Marketplace open | YAML `base_url` |
-| [Hermes](./hermes.md) | `hermes` | OpenAI | YAML | 5 | Research | — | YAML `base_url` |
-| [Kilo Code CLI](./kilo.md) | `kilo` | Multi-provider | TS/JS plugin | ~15 | Research | — | `KILO_PROVIDER` env |
-| [Antigravity](./antigravity.md) | `agy` | Google-only | JSON (named) | 2 | Research | — | None (Google-only) |
-| [Devin CLI](./devin.md) | `devin` | Proprietary | JSON | TBD | Research | — | None (Devin-only) |
+| [Claude Code](./claude-code.md) | `claude` | Anthropic | JSON settings.json | 6 | ✅ headless+PTY | ✅ | `npm -g @anthropic-ai/claude-code` |
+| [Codex](./codex.md) | `codex` | Responses | JSON plugin | 6 | ✅ headless+PTY | ✅ | `npm -g @openai/codex` + belt plugin |
+| [Copilot](./copilot.md) | `copilot` | OpenAI | JSON Copilot v1 | 2 | ✅ headless+PTY | ✅ | `npm -g @github/copilot` |
+| [Grok](./grok.md) | `grok` | OpenAI | JSON nested | 4 | ✅ PTY only | ✅ | `curl x.ai/cli/install.sh` |
+| [Pi](./pi.md) | `pi` | OpenAI | TS extension | 2 | ✅ headless+PTY | ✅ | `npm -g @earendil-works/pi-coding-agent` |
+| [Hermes](./hermes.md) | `hermes` | OpenAI | YAML + shell | 4 | ✅ headless | ✅ | `pip install hermes-agent` |
+| [OpenCode](./opencode.md) | `opencode` | OpenAI | TS plugin | via belt | ✅ headless | ✅ | `npm -g opencode-ai` |
 
-## Priority tiers
+### Skipped (require interactive login or can't inject)
 
-### Tier 1 — Low effort, high value (JSON hooks, marketplace, OpenAI-compatible)
-
-These have Claude Code-compatible hook formats and plugin marketplaces:
-
-1. **Grok CLI** — nearly identical hook format to Claude Code. `GROK_BASE_URL` for testing. Open plugin marketplace.
-2. **Copilot CLI** — 14 events, plugin marketplace, `COPILOT_PROVIDER_BASE_URL`. camelCase events (like Cursor).
-3. **Droid** — 7 events, `DROID_PLUGIN_ROOT` env var, plugin marketplace. `customModels` for test endpoint.
-4. **Qoder CLI** — 20+ events, `QODER_PLUGIN_ROOT`/`QODER_PLUGIN_DATA`, plugin marketplace.
-
-### Tier 2 — Medium effort (non-JSON config or limited hook surface)
-
-5. **Kimi Code CLI** — 20 events but TOML config format. Need TOML template instead of JSON.
-6. **MastraCode** — Missing `UserPromptSubmit` equivalent. Needs more research.
-
-### Tier 3 — Higher effort (TS/JS plugins or limited extensibility)
-
-7. **OMP** — TS extension model, marketplace. Similar to Pi.
-8. **Kilo Code CLI** — TS/JS plugin modules, no config-file hooks.
-9. **Hermes** — Only 5 events, snake_case, YAML config.
-
-### Tier 4 — Blockers (no custom endpoint or very limited)
-
-10. **Antigravity CLI** — Google-only API, only 2 hook events, no custom endpoint.
-11. **Devin CLI** — Proprietary API, no custom endpoint for testing.
+| Harness | Binary | Reason |
+|---|---|---|
+| [Kimi](./kimi.md) | `kimi` | Requires interactive login |
+| [Droid](./droid.md) | `droid` | Requires interactive login |
+| [Kilo](./kilo.md) | `kilo` | Requires interactive login |
+| [MastraCode](./mastracode.md) | `mastracode` | Hooks are gate/logging only, no context injection |
+| [Cursor](./cursor.md) | `cursor` | IDE extension only, no CLI |
+| [Windsurf](./windsurf.md) | `windsurf` | IDE extension only, no CLI |
+| [Antigravity](./antigravity.md) | `agy` | Google-only API, 2 events, no custom endpoint |
+| [Devin](./devin.md) | `devin` | Proprietary API |
 
 ## Hook format families
 
-| Family | Harnesses | Template type |
-|---|---|---|
-| JSON nested (Claude-style) | Claude, Codex, Grok, Copilot, Droid, Qoder | `hooks.json` with `{type, command, timeout}` |
-| JSON flat (Cursor-style) | Cursor, Windsurf | `hooks.json` with `{command, timeout}` |
-| JSON named blocks | Antigravity | `hooks.json` keyed by integration name |
-| TOML | Kimi | `config.toml` with `[[hooks]]` entries |
-| YAML | Hermes | `config.yaml` |
-| TS/JS modules | OpenCode, Pi, OMP, Kilo | Plugin TypeScript/JavaScript files |
-
-## Event name conventions
-
-| Convention | Harnesses |
-|---|---|
-| PascalCase | Claude, Codex, Grok, Droid, Qoder, Kimi, MastraCode |
-| camelCase | Cursor, Copilot, Windsurf |
-| snake_case | Hermes |
-| dot.notation | Kilo |
+| Family | Harnesses | Config file | Event naming |
+|---|---|---|---|
+| JSON nested (Claude-style) | Claude, Codex, Grok, Copilot, Droid | `hooks.json` / `settings.json` | PascalCase |
+| JSON Copilot v1 | Copilot | `belt.json` with `version`, `bash` fields | camelCase |
+| YAML | Hermes | `config.yaml` hooks block | snake_case |
+| TS extension | Pi | `.ts` file exporting `default function(pi)` | snake_case |
+| TS plugin module | OpenCode, Kilo | `index.ts` with `@opencode-ai/plugin` | dot.notation |
+| TOML | Kimi | `config.toml` with `[[hooks]]` | PascalCase |
 
 ## Custom endpoint env vars
 
-| Harness | Env var | Format |
+| Harness | Env var | Notes |
 |---|---|---|
-| Claude Code | `ANTHROPIC_BASE_URL` | Anthropic |
-| Codex | `OPENAI_BASE_URL` | OpenAI |
-| Cursor | None (routed through Cursor backend) | N/A |
-| Grok | `GROK_BASE_URL` | OpenAI |
-| Copilot | `COPILOT_PROVIDER_BASE_URL` | OpenAI |
-| Kimi | TOML `base_url` in config | Multi |
-| Droid | JSON `customModels.baseUrl` | OpenAI |
-| Hermes | YAML `base_url` in config | OpenAI |
-| Kilo | `KILO_PROVIDER` + env | Multi |
-| OMP | YAML `base_url` in config | Multi |
-| Antigravity | None | Google-only |
-| Devin | `DEVIN_BASE_URL` | Proprietary |
+| Claude | `ANTHROPIC_BASE_URL` | Anthropic Messages API |
+| Codex | N/A | `-c model_providers.mock.base_url=URL` |
+| Copilot | `COPILOT_PROVIDER_BASE_URL` | + `COPILOT_MODEL` |
+| Grok | `GROK_CLI_CHAT_PROXY_BASE_URL` | + 6 other service URLs |
+| Pi | N/A | `--provider openrouter` + `OPENROUTER_API_KEY` |
+| Hermes | `OPENROUTER_BASE_URL` | config `base_url` ignored with `--provider` |
+| OpenCode | `OPENAI_BASE_URL` | append `/v1` |
+
+## Plugin / marketplace
+
+| Harness | Plugin format | Belt plugin | Install method |
+|---|---|---|---|
+| Claude | `.claude-plugin/` | ✅ `hooks.json` | `claude plugin marketplace add` |
+| Codex | `.codex-plugin/` | ✅ `codex-hooks.json` | `codex plugin marketplace add` |
+| Copilot | hooks dir (v1 JSON) | via hooks dir | copy to `.copilot/hooks/` |
+| Grok | hooks dir (JSON) | planned | copy to `.grok/hooks/` |
+| Pi | TS extension | via extension | copy to `.pi/agent/extensions/` |
+| Hermes | YAML + scripts | via config.yaml | `hermes hooks` |
+| OpenCode | TS plugin + npm | ✅ `index.ts` | `opencode plugin` |
+
+## Priority tiers
+
+### Tier 1 — Tested and working
+Claude, Codex, Copilot, Pi, Hermes, OpenCode — all pass mock server tests.
+Grok passes in interactive mode (headless skips hooks by design).
+
+### Tier 2 — Blocked on auth
+Kimi, Droid, Kilo — hook formats are known, would work with mock server,
+but the CLIs require interactive login before any operation.
+
+### Tier 3 — Architectural limits
+MastraCode — hooks exist but can't inject context (gate/logging only).
+Cursor, Windsurf — IDE extensions, no CLI to test against.
+Antigravity — Google-only, 2 events, no custom endpoint.
+Devin — proprietary API.

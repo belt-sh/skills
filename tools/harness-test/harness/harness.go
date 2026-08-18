@@ -34,6 +34,10 @@ type Harness struct {
 	Name    string
 	Binary  string // CLI binary name
 
+	// Install
+	InstallCmd  []string   // command to install the CLI if missing
+	PostInstall [][]string // commands to run after install (e.g. register plugin marketplace)
+
 	// API
 	APIFormat      APIFormat
 	EndpointEnvVars map[string]string // env vars to set to mock URL (key=var, value="{{.BaseURL}}" or literal)

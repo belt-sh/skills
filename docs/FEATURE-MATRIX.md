@@ -1,83 +1,101 @@
 # Belt Plugin Feature Matrix
 
-What belt can do in each harness, based on container test results and source analysis.
+What belt can do in each harness. Status is from containerized mock-server tests
+(`harness-test --harness all`), not from host-machine manual runs.
 
-## Context Injection (the core feature)
+## Hook Events Tested
 
-| Harness | Hook Fires | Context Injected | Agent Reads It | Injection Method | Tested |
-|---|---|---|---|---|---|
-| **Claude Code** | ✅ | ✅ | ✅ | stdout → system-reminder | Multi-turn |
-| **Codex** | ✅ | ✅ | ✅ | stdout → context | Single turn |
-| **Copilot** | ✅ | ✅ | ✅ | `{"additionalContext":"..."}` JSON | Single turn |
-| **Pi** | ✅ | ✅ | ✅ | `return {systemPrompt}` | Single turn |
-| **Hermes** | ✅ | ✅ | ✅ | `{"context":"..."}` JSON | Single turn |
-| **Grok** | ❌ headless | ❌ | ❌ | Stop hooks only (not UserPromptSubmit) | TUI only |
-| **OpenCode** | ❓ loads | ❌ | ❌ | `experimental.chat.system.transform` | Not firing |
-| **MastraCode** | ❓ | ❌ never | ❌ | N/A — hooks are gate/logging only | N/A |
+Events the harness-test tool registers and verifies. The Claude plugin is the
+reference — every other harness should cover the same lifecycle.
 
-## Belt Behaviors per Harness
+| Event | Claude | Codex | Copilot | Grok | Pi | Hermes | OpenCode |
+|---|---|---|---|---|---|---|---|
+| **SessionStart** | ✅ `SessionStart` | ✅ `SessionStart` | — | — | — | — | TS plugin |
+| **PromptSubmit** | ✅ `UserPromptSubmit` | ✅ `UserPromptSubmit` | ✅ `userPromptSubmitted` | ✅ `UserPromptSubmit` | ✅ `before_agent_start` | ✅ `pre_llm_call` | TS plugin |
+| **PreToolUse** | ✅ `PreToolUse` | ✅ `PreToolUse` | — | ✅ `PreToolUse` | — | ✅ `pre_tool_call` | TS `tool.execute.before` |
+| **PostToolUse** | ✅ `PostToolUse` | ✅ `PostToolUse` | — | ✅ `PostToolUse` | — | ✅ `post_tool_call` | TS `tool.execute.after` |
+| **Stop** | ✅ `Stop` | ✅ `Stop` | ✅ `agentStop` | ✅ `Stop` | ✅ `agent_end` | ✅ `subagent_stop` | TS plugin |
+| **PreCompact** | ✅ `PreCompact` | ✅ `PreCompact` | — | — | — | — | TS plugin |
 
-| Behavior | Claude | Codex | Copilot | Pi | Hermes | Grok | OpenCode | MastraCode |
-|---|---|---|---|---|---|---|---|---|
-| **Bootstrap** (session start) | ✅ SessionStart | ✅ SessionStart | ✅ sessionStart | ✅ session_start | ✅ on_session_start | ❌ headless | ❓ session.created | ❓ SessionStart |
-| **Suggest inject** (pre-prompt) | ✅ UserPromptSubmit | ✅ UserPromptSubmit | ✅ userPromptSubmitted | ✅ before_agent_start | ✅ pre_llm_call | ❌ Observe-only | ❌ experimental | ❌ no injection |
-| **Mutation telemetry** (post-tool) | ✅ PostToolUse | ✅ PostToolUse | ✅ postToolUse | ✅ tool_result | ✅ post_tool_call | ❌ headless | ❓ tool.execute.after | ✅ PostToolUse |
-| **Periodic review** (stop) | ✅ Stop | ✅ Stop | ✅ agentStop | ✅ agent_end | ❓ | ❌ headless | ❓ stop | ✅ Stop |
-| **Final review** (session end) | ✅ SessionEnd | ❌ none | ❌ sessionEnd | ✅ session_shutdown | ❓ | ❌ headless | ❓ | ❓ SessionEnd |
+✅ = event name mapped and hook registered in tests
+— = harness does not expose this event
+TS plugin = OpenCode uses TypeScript plugin modules, not shell command hooks
 
-## Skills & Rules
+## Context Injection
 
-| Harness | Skills Dir | Rules Format | Loads SKILL.md? | Auto-discovers skills? |
+| Harness | Hook Fires | Context Injected | Method | Verified |
 |---|---|---|---|---|
-| Claude Code | `<plugin>/skills/` | `.md` in rules/ | ✅ | ✅ via plugin |
-| Codex | `~/.agents/skills/` | N/A | ✅ | ✅ via plugin |
-| Copilot | `~/.copilot/skills/` | `copilot-instructions.md` | ✅ | ✅ |
-| Pi | Extensions dir | N/A | ❓ | ❓ |
-| Hermes | N/A | `AGENTS.md` | ❌ | ❌ |
-| Grok | `~/.grok/skills/` | `AGENTS.md` + `.grok/rules/` | ✅ | ✅ |
-| OpenCode | `~/.config/opencode/skills/` | N/A | ✅ | ✅ |
-| MastraCode | N/A | N/A | ❓ | ❓ |
+| **Claude Code** | ✅ | ✅ | stdout → system-reminder | ✅ mock server |
+| **Codex** | ✅ | ✅ | stdout → context | ✅ mock server |
+| **Copilot** | ✅ | ✅ | `{"additionalContext":"..."}` JSON | ✅ mock server |
+| **Pi** | ✅ | ✅ | `return {systemPrompt}` in TS | ✅ mock server |
+| **Hermes** | ✅ | ✅ | `{"context":"..."}` JSON on stdout | ✅ mock server |
+| **Grok** | ✅ interactive | ✅ | stdout → context (TUI only) | ✅ mock + PTY |
+| **OpenCode** | ✅ | ✅ | `output.system.push()` in TS | ✅ mock server |
 
-## Headless/CI Testing
+## Headless / CI Testing
 
-| Harness | Headless Flag | Hooks Fire Headless? | Custom Endpoint | Tested In Docker |
+| Harness | Headless Cmd | Hooks In Headless | Custom Endpoint | Mock Server API |
 |---|---|---|---|---|
-| Claude Code | `-p` / `--print` | ✅ | `ANTHROPIC_BASE_URL` | ✅ non-root |
-| Codex | `codex exec` | ✅ | OpenRouter `model_providers` | ✅ |
-| Copilot | `--prompt` | ✅ | `COPILOT_PROVIDER_BASE_URL` | ✅ |
-| Pi | `-p` / `--print` | ✅ | `OPENROUTER_API_KEY` (native) | ✅ |
-| Hermes | `-z` + `--cli` | ✅ | `~/.hermes/.env` | ✅ |
-| Grok | `-p` / `--single` | ❌ by design | `GROK_BASE_URL` | ✅ (no hooks) |
-| OpenCode | `opencode run` | ❓ | `OPENAI_BASE_URL` | ✅ (no injection) |
-| MastraCode | `--thread new` | ❓ | `OPENAI_BASE_URL` | ✅ (no injection) |
+| Claude Code | `claude -p` | ✅ | `ANTHROPIC_BASE_URL` | Anthropic Messages |
+| Codex | `codex exec` (stdin) | ✅ | `-c model_providers.mock.*` | OpenAI Responses |
+| Copilot | `copilot --prompt` | ✅ | `COPILOT_PROVIDER_BASE_URL` | OpenAI Chat |
+| Grok | `grok -p` | ❌ hooks skip | `GROK_CLI_CHAT_PROXY_BASE_URL` + 6 others | OpenAI Chat |
+| Pi | `pi -p` | ✅ | via `--provider openrouter` | OpenAI Chat |
+| Hermes | `hermes chat -q` | ✅ | `OPENROUTER_BASE_URL` | OpenAI Chat |
+| OpenCode | `opencode run` | ✅ | `OPENAI_BASE_URL` | OpenAI Chat |
 
-## Plugin/Marketplace
+Notes:
+- Grok `-p` mode does not fire hooks (dispatcher is in TUI/pager layer).
+  Interactive PTY mode fires hooks normally.
+- Hermes `-z` mode is silent (output goes to session DB). Use `chat -q` instead.
+- Codex reads hooks from its plugin system only. `PreserveHome` keeps installed plugins.
 
-| Harness | Plugin Format | Marketplace | Belt Plugin Exists | Can Self-Install |
+## Plugin / Marketplace
+
+| Harness | Plugin Format | Marketplace | Belt Plugin | Hooks Source |
 |---|---|---|---|---|
-| Claude Code | `.claude-plugin/` | ✅ `claude plugin marketplace add` | ✅ | ✅ |
-| Codex | `.codex-plugin/` | ✅ `codex plugin marketplace add` | ✅ | ✅ |
-| Copilot | `hooks/*.json` (v1) | ✅ `copilot-plugins` | ❌ planned | Via hooks dir |
-| Pi | TS extensions | ❌ | ❌ | Via `pi install` |
-| Hermes | YAML config + scripts | ❌ | ❌ | Via config.yaml |
-| Grok | JSON hooks dir | ✅ `/marketplace` | ❌ planned | Via hooks dir |
-| OpenCode | TS plugins | ❌ | ❌ | Via `opencode plugin` |
-| MastraCode | JSON hooks | ❌ | ❌ | Via hooks.json |
+| Claude Code | `.claude-plugin/` dir | `claude plugin marketplace add` | ✅ `hooks.json` | settings.json or plugin hooks/ |
+| Codex | `.codex-plugin/` dir | `codex plugin marketplace add` | ✅ `codex-hooks.json` | plugin hooks/ only |
+| Copilot | hooks/ dir (v1 JSON) | built-in | hooks dir | `.copilot/hooks/belt.json` |
+| Grok | hooks/ dir (JSON) | marketplace | ❌ planned | `.grok/hooks/belt.json` |
+| Pi | TS extension | — | — | `.pi/agent/extensions/` |
+| Hermes | YAML config + scripts | — | — | `~/.hermes/config.yaml` |
+| OpenCode | TS plugin + npm | `opencode plugin` | ✅ `index.ts` | npm-installed plugin |
 
-## Known Limitations
+## Hook Format Families
 
-### Grok
-- `-p` mode does not fire hooks (confirmed from source: hook dispatcher is in TUI layer)
-- `UserPromptSubmit` is `Observe` gate — output recorded but NOT injected
-- Context injection only via `Stop` hooks using `additionalContext`
-- TUI hook testing requires PTY harness (see `xai-grok-pager-pty-harness`)
+| Family | Harnesses | Config File | Event Naming |
+|---|---|---|---|
+| JSON nested (Claude-style) | Claude, Codex, Grok, Copilot, Droid | `hooks.json` / `settings.json` | PascalCase |
+| JSON flat (Cursor-style) | Cursor, Windsurf | `hooks.json` | camelCase |
+| JSON Copilot v1 | Copilot | `belt.json` with `version`, `bash` | camelCase |
+| YAML | Hermes | `config.yaml` | snake_case |
+| TS extension | Pi | `.ts` file in extensions/ | snake_case |
+| TS plugin module | OpenCode, Kilo | `index.ts` with `@opencode-ai/plugin` | dot.notation |
+| TOML | Kimi | `config.toml` | PascalCase |
 
-### OpenCode
-- `experimental.chat.system.transform` hook doesn't fire in `run` mode
-- Plugin must export a default function, loaded via Bun
-- Hangs in git repos (indexes files before responding)
+## Custom Endpoint Env Vars
 
-### MastraCode
-- Hooks are gate/logging only — no `additionalContext` protocol
-- Feature request for context injection was closed (mastra-ai/mastra#10078)
-- Belt can still provide: knowledge harvesting (via Stop hook logging), skill files
+| Harness | Env Var | Notes |
+|---|---|---|
+| Claude Code | `ANTHROPIC_BASE_URL` | |
+| Codex | N/A | use `-c model_providers.mock.base_url=URL` |
+| Copilot | `COPILOT_PROVIDER_BASE_URL` | also `COPILOT_MODEL` |
+| Grok | `GROK_CLI_CHAT_PROXY_BASE_URL` | plus 6 other service URLs |
+| Pi | N/A | `--provider openrouter` + `OPENROUTER_API_KEY` |
+| Hermes | `OPENROUTER_BASE_URL` | config `base_url` ignored when `--provider` set |
+| OpenCode | `OPENAI_BASE_URL` | append `/v1` |
+
+## Skipped Harnesses
+
+| Harness | Reason |
+|---|---|
+| Kimi | Requires interactive login |
+| Droid | Requires interactive login |
+| Kilo | Requires interactive login |
+| MastraCode | Hooks are gate/logging only — no context injection |
+| Cursor | No CLI (IDE extension only) |
+| Windsurf | No CLI (IDE extension only) |
+| Antigravity | Google-only API, 2 events, no custom endpoint |
+| Devin | Proprietary API, no custom endpoint |

@@ -139,10 +139,31 @@ func (r *Runner) setupHome() {
 func (r *Runner) checkBinary() {
 	fmt.Println("[phase 1] prerequisites")
 	if _, err := exec.LookPath(r.harness.Binary); err != nil {
-		r.fail(r.harness.Binary + " not found")
+		if len(r.harness.InstallCmd) == 0 {
+			r.fail(r.harness.Binary + " not found (no install command)")
+			return
+		}
+		fmt.Printf("  … installing %s\n", r.harness.Binary)
+		cmd := exec.Command(r.harness.InstallCmd[0], r.harness.InstallCmd[1:]...)
+		cmd.Env = os.Environ()
+		out, installErr := cmd.CombinedOutput()
+		if installErr != nil {
+			r.fail(fmt.Sprintf("install %s: %v\n%s", r.harness.Binary, installErr, string(out)))
+			return
+		}
+		if _, err := exec.LookPath(r.harness.Binary); err != nil {
+			r.fail(r.harness.Binary + " not found after install")
+			return
+		}
+		r.pass(r.harness.Binary + " installed")
+		for _, postCmd := range r.harness.PostInstall {
+			cmd := exec.Command(postCmd[0], postCmd[1:]...)
+			cmd.Env = os.Environ()
+			cmd.Run()
+		}
 		return
 	}
-	r.pass(r.harness.Binary + " installed")
+	r.pass(r.harness.Binary + " found")
 }
 
 func (r *Runner) setupEndpoint() {

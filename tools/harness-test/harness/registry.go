@@ -3,6 +3,7 @@ package harness
 var All = map[string]Harness{
 	"claude": {
 		Name: "claude", Binary: "claude",
+		InstallCmd: []string{"npm", "install", "-g", "@anthropic-ai/claude-code"},
 		APIFormat: Anthropic,
 		EndpointEnvVars: map[string]string{
 			"ANTHROPIC_BASE_URL": "{{.BaseURL}}",
@@ -36,6 +37,11 @@ var All = map[string]Harness{
 	},
 	"codex": {
 		Name: "codex", Binary: "codex",
+		InstallCmd: []string{"npm", "install", "-g", "@openai/codex"},
+		PostInstall: [][]string{
+			{"sh", "-c", "codex plugin marketplace add belt-sh-skills --source https://github.com/belt-sh/skills.git 2>/dev/null || true"},
+			{"sh", "-c", "codex plugin add belt@belt-sh-skills 2>/dev/null || true"},
+		},
 		APIFormat: Responses,
 		EndpointEnvVars: map[string]string{},
 		APIKeyEnvVar:    "OPENAI_API_KEY",
@@ -73,6 +79,7 @@ var All = map[string]Harness{
 	},
 	"copilot": {
 		Name: "copilot", Binary: "copilot",
+		InstallCmd: []string{"npm", "install", "-g", "@github/copilot"},
 		APIFormat: OpenAI,
 		EndpointEnvVars: map[string]string{
 			"COPILOT_PROVIDER_BASE_URL": "{{.BaseURL}}",
@@ -96,6 +103,7 @@ var All = map[string]Harness{
 	},
 	"grok": {
 		Name: "grok", Binary: "grok",
+		InstallCmd: []string{"sh", "-c", "curl -fsSL https://x.ai/cli/install.sh | bash"},
 		APIFormat: OpenAI,
 		EndpointEnvVars: map[string]string{
 			"GROK_CLI_CHAT_PROXY_BASE_URL": "{{.BaseURL}}",
@@ -130,6 +138,7 @@ var All = map[string]Harness{
 	},
 	"pi": {
 		Name: "pi", Binary: "pi",
+		InstallCmd: []string{"npm", "install", "-g", "--ignore-scripts", "@earendil-works/pi-coding-agent"},
 		APIFormat:    OpenAI,
 		EndpointEnvVars: map[string]string{},
 		APIKeyEnvVar: "OPENROUTER_API_KEY",
@@ -147,6 +156,7 @@ var All = map[string]Harness{
 	},
 	"hermes": {
 		Name: "hermes", Binary: "hermes",
+		InstallCmd: []string{"pip", "install", "--break-system-packages", "hermes-agent"},
 		APIFormat:    OpenAI,
 		EndpointEnvVars: map[string]string{
 			"OPENROUTER_BASE_URL": "{{.BaseURL}}/v1",
@@ -174,6 +184,7 @@ var All = map[string]Harness{
 	},
 	"opencode": {
 		Name: "opencode", Binary: "opencode",
+		InstallCmd: []string{"npm", "install", "-g", "opencode-ai"},
 		APIFormat: OpenAI,
 		EndpointEnvVars: map[string]string{
 			"OPENAI_BASE_URL": "{{.BaseURL}}/v1",
