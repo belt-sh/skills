@@ -105,7 +105,7 @@ var All = map[string]Harness{
 		HookConfigDir: ".copilot/hooks",
 		Events: Events{
 			PromptSubmit: "userPromptSubmitted",
-			Stop:         "agentStop",
+			Stop:         "sessionEnd",
 		},
 		SkillsDir:          ".copilot/skills",
 		HeadlessCmd:         []string{"copilot", "--prompt"},
