@@ -183,7 +183,7 @@ var All = map[string]Harness{
 			PromptSubmit: "pre_llm_call",
 			PreToolUse:   "pre_tool_call",
 			PostToolUse:  "post_tool_call",
-			Stop:         "subagent_stop",
+			Stop:         "on_session_end",
 		},
 		ConfigFiles: []ConfigFile{
 			{Path: ".hermes/.env", Content: "OPENROUTER_API_KEY={{.APIKey}}\n"},

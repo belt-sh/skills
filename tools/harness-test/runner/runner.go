@@ -240,21 +240,58 @@ func (r *Runner) writeHooks() {
 
 	case harness.YAML:
 		filename = "config.yaml"
-		scriptPath := filepath.Join(r.home, ".hermes", "test-hook.sh")
-		os.MkdirAll(filepath.Dir(scriptPath), 0755)
-		scriptContent := fmt.Sprintf("#!/bin/sh\ncat - >/dev/null\necho PROMPT >> %s\nprintf '{\"context\": \"The project codename is %s.\"}\\n'\n", logPath, r.injectCode)
-		os.WriteFile(scriptPath, []byte(scriptContent), 0755)
-		content = fmt.Sprintf("model:\n  default: %s\n  provider: openrouter\n  base_url: %s/v1\nhooks:\n  %s:\n    - command: %s\n      timeout: 5\nhooks_auto_accept: true\n",
-			r.harness.DefaultModel, r.baseURL, r.harness.Events.PromptSubmit, scriptPath)
+		hookDir := filepath.Join(r.home, ".hermes", "test-hooks")
+		os.MkdirAll(hookDir, 0755)
+
+		evts := r.harness.Events
+		yamlHooks := ""
+		entries := []struct{ event, tag string }{
+			{evts.PromptSubmit, "PROMPT"},
+			{evts.PreToolUse, "PRE_TOOL"},
+			{evts.PostToolUse, "POST_TOOL"},
+			{evts.Stop, "STOP"},
+		}
+		for _, e := range entries {
+			if e.event == "" {
+				continue
+			}
+			script := filepath.Join(hookDir, e.tag+".sh")
+			body := fmt.Sprintf("#!/bin/sh\ncat - >/dev/null\necho %s >> %s\n", e.tag, logPath)
+			if e.tag == "PROMPT" {
+				body += fmt.Sprintf("printf '{\"context\": \"The project codename is %s.\"}\\n'\n", r.injectCode)
+			}
+			os.WriteFile(script, []byte(body), 0755)
+			yamlHooks += fmt.Sprintf("  %s:\n    - command: %s\n      timeout: 5\n", e.event, script)
+		}
+		content = fmt.Sprintf("model:\n  default: %s\n  provider: openrouter\n  base_url: %s/v1\nhooks:\n%shooks_auto_accept: true\n",
+			r.harness.DefaultModel, r.baseURL, yamlHooks)
 
 	case harness.TSExtension:
 		filename = "belt-test.ts"
-		content = fmt.Sprintf(`export default function (pi: any) {
-  pi.on("%s", async (event: any) => {
+		evts := r.harness.Events
+		tsHooks := ""
+		tsEntries := []struct{ event, tag string }{
+			{evts.PromptSubmit, "PROMPT"},
+			{evts.Stop, "STOP"},
+		}
+		for _, e := range tsEntries {
+			if e.event == "" {
+				continue
+			}
+			if e.tag == "PROMPT" {
+				tsHooks += fmt.Sprintf(`  pi.on("%s", async (event: any) => {
     require("fs").appendFileSync("%s", "PROMPT\n");
     return { systemPrompt: (event.systemPrompt || '') + '\nThe project codename is %s.' };
   });
-}`, r.harness.Events.PromptSubmit, logPath, r.injectCode)
+`, e.event, logPath, r.injectCode)
+			} else {
+				tsHooks += fmt.Sprintf(`  pi.on("%s", async () => {
+    require("fs").appendFileSync("%s", "%s\n");
+  });
+`, e.event, logPath, e.tag)
+			}
+		}
+		content = fmt.Sprintf("export default function (pi: any) {\n%s}\n", tsHooks)
 
 	default:
 		r.skip("hook format not yet implemented")
@@ -354,8 +391,8 @@ func (r *Runner) runHeadless() {
 	} else {
 		r.fail("headless produced no output")
 	}
-	// Wait for async hooks (Stop) to finish writing
-	time.Sleep(2 * time.Second)
+	// Wait for async hooks (Stop, on_session_end) to finish writing
+	time.Sleep(3 * time.Second)
 }
 
 func (r *Runner) runInteractive() {

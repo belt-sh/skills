@@ -33,6 +33,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "exec_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PLUGIN_ROOT}/bin/hook-post-tool.sh",
+            "timeout": 3
+          }
+        ]
       }
     ],
     "PostToolUse": [
