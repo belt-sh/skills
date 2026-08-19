@@ -244,6 +244,8 @@ var All = map[string]Harness{
 		EndpointEnvVars: map[string]string{},
 		APIKeyEnvVar:    "",
 		DefaultModel:    "gpt-4o-mini",
+		ToolCallName:    "Read",
+		ToolCallArgs:    `{"path":"{{.RepoDir}}/README.md"}`,
 		HookFormat:      TOML,
 		HookConfigDir:   ".kimi-code",
 		Events: Events{
