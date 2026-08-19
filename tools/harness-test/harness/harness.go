@@ -70,12 +70,13 @@ type Harness struct {
 	HooksInHeadless bool
 
 	// Interactive (PTY/TUI) mode
-	InteractiveCmd         []string
-	InteractiveArgs        []string // extra flags for interactive mode, supports {{.Model}} etc.
-	ExitCommand            string
-	HooksInInteractive     bool
-	NeedsAuthForInteractive bool // TUI requires OAuth login (can't test hooks without real auth)
-	OnboardingDismiss      []string // substrings that indicate a dialog to dismiss with Enter
+	InteractiveCmd          []string
+	InteractiveArgs         []string // extra flags for interactive mode, supports {{.Model}} etc.
+	InteractivePromptInArgs bool     // prompt is part of InteractiveArgs, don't SendLine
+	ExitCommand             string
+	HooksInInteractive      bool
+	NeedsAuthForInteractive bool     // TUI requires OAuth login (can't test hooks without real auth)
+	OnboardingDismiss       []string // substrings that indicate a dialog to dismiss with Enter
 
 	// Setup
 	PreserveHome bool // don't override HOME (harness needs installed plugins)

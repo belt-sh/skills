@@ -97,12 +97,16 @@ func (r *Runner) Run() Result {
 	hasToolHooks := r.harness.Events.PreToolUse != "" || r.harness.Events.PostToolUse != ""
 
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
-		if r.server != nil && hasToolHooks {
-			r.server.SetToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs)
-			r.server.SetToolCallMode(true)
+		if r.harness.HooksInHeadless {
+			if r.server != nil && hasToolHooks {
+				r.server.SetToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs)
+				r.server.SetToolCallMode(true)
+			}
+			r.runHeadless()
+			r.checkHookEvents("headless")
+		} else {
+			r.skip(r.harness.Name + " does not fire hooks in headless mode")
 		}
-		r.runHeadless()
-		r.checkHookEvents("headless")
 	}
 	if r.mode == ModeBoth || r.mode == ModeInteractive {
 		os.Remove("/tmp/belt-hook-events.log")
@@ -356,10 +360,6 @@ func (r *Runner) ensureGitRepo() string {
 }
 
 func (r *Runner) runHeadless() {
-	if !r.harness.HooksInHeadless {
-		r.skip(r.harness.Name + " does not fire hooks in headless mode")
-		return
-	}
 	if len(r.harness.HeadlessCmd) == 0 {
 		r.skip("no headless command configured")
 		return
@@ -467,14 +467,17 @@ func (r *Runner) runInteractive() {
 	}
 	r.pass("TUI started")
 
-	session.SendLine("What is the project codename? Reply ONLY the codename.")
-
-	session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server"}, 30*time.Second)
-	time.Sleep(3 * time.Second)
-
-	if r.harness.ExitCommand != "" {
-		session.SendLine(r.harness.ExitCommand)
-		time.Sleep(5 * time.Second)
+	if r.harness.InteractivePromptInArgs {
+		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server", "build"}, 60*time.Second)
+		time.Sleep(3 * time.Second)
+	} else {
+		session.SendLine("What is the project codename? Reply ONLY the codename.")
+		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server"}, 30*time.Second)
+		time.Sleep(3 * time.Second)
+		if r.harness.ExitCommand != "" {
+			session.SendLine(r.harness.ExitCommand)
+			time.Sleep(5 * time.Second)
+		}
 	}
 	session.SendCtrlC()
 	session.Wait(5 * time.Second)

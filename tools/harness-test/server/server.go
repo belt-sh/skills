@@ -38,17 +38,26 @@ func New() *MockServer {
 	}
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /v1/chat/completions", s.handleChatCompletions)
-	mux.HandleFunc("POST /v1/responses", s.handleResponses)
-	mux.HandleFunc("POST /responses", s.handleResponses)
-	mux.HandleFunc("POST /v1/messages", s.handleMessages)
-	mux.HandleFunc("POST /messages", s.handleMessages)
-	mux.HandleFunc("GET /v1/models", s.handleModels)
+	// LLM APIs — each registered with and without /v1/ prefix
+	for _, prefix := range []string{"/v1", ""} {
+		mux.HandleFunc("POST "+prefix+"/chat/completions", s.handleChatCompletions)
+		mux.HandleFunc("POST "+prefix+"/responses", s.handleResponses)
+		mux.HandleFunc("POST "+prefix+"/messages", s.handleMessages)
+		mux.HandleFunc("GET "+prefix+"/models", s.handleModels)
+	}
 
-	// Grok-specific
-	mux.HandleFunc("GET /v1/user", s.handleGrokJSON(map[string]any{"userId": "mock-user", "email": "mock@test.invalid"}))
-	mux.HandleFunc("GET /v1/settings", s.handleGrokJSON(map[string]any{"models": map[string]any{"default": "mock-model"}}))
-	mux.HandleFunc("GET /v1/privacy/coding-data-retention", s.handleGrokJSON(map[string]any{"opted_out": false}))
+	// Harness management endpoints (Grok auth, settings, sessions)
+	stub := s.handleGrokJSON(map[string]any{})
+	settings := s.handleGrokJSON(map[string]any{"models": map[string]any{"default": "mock-model"}})
+	for _, prefix := range []string{"/v1", ""} {
+		mux.HandleFunc("GET "+prefix+"/user", s.handleGrokJSON(map[string]any{"userId": "mock-user", "email": "mock@test.invalid"}))
+		mux.HandleFunc("GET "+prefix+"/settings", settings)
+		mux.HandleFunc("GET "+prefix+"/privacy/coding-data-retention", s.handleGrokJSON(map[string]any{"opted_out": false}))
+	}
+	mux.HandleFunc("GET /api-key", stub)
+	mux.HandleFunc("GET /billing", stub)
+	mux.HandleFunc("GET /feedback/config", stub)
+	mux.HandleFunc("GET /bundle/archive", stub)
 	mux.HandleFunc("POST /sessions/{id}/data", s.handleGrokRecord)
 	mux.HandleFunc("PUT /sessions/{id}", s.handleGrokRecord)
 
@@ -57,6 +66,13 @@ func New() *MockServer {
 	mux.HandleFunc("GET /log/count", s.handleLogCount)
 	mux.HandleFunc("DELETE /log", s.handleClearLog)
 	mux.HandleFunc("POST /response", s.handleSetResponse)
+
+	// Catch-all: return 200 for any unhandled path (prevents 404 crashes)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		s.record(r, body)
+		writeJSON(w, map[string]any{"ok": true})
+	})
 
 	s.srv = &http.Server{Handler: mux}
 	return s
