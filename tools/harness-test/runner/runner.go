@@ -494,10 +494,10 @@ func (r *Runner) runInteractive() {
 		session.SendLine("What is the project codename? Reply ONLY the codename.")
 		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server"}, 30*time.Second)
 		time.Sleep(3 * time.Second)
-		if r.harness.ExitCommand != "" {
-			session.SendLine(r.harness.ExitCommand)
-			time.Sleep(5 * time.Second)
-		}
+	}
+	if !r.harness.InteractivePromptInArgs && r.harness.ExitCommand != "" {
+		session.SendLine(r.harness.ExitCommand)
+		time.Sleep(5 * time.Second)
 	}
 	session.SendCtrlC()
 	session.Wait(5 * time.Second)

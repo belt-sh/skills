@@ -76,6 +76,7 @@ type Harness struct {
 	InteractiveArgs         []string // extra flags for interactive mode, supports {{.Model}} etc.
 	InteractivePromptInArgs bool     // prompt is part of InteractiveArgs, don't SendLine
 	ExitCommand             string
+	CompactCommand          string   // slash command to trigger compaction (e.g. "/compact")
 	HooksInInteractive      bool
 	NeedsAuthForInteractive bool     // TUI requires OAuth login (can't test hooks without real auth)
 	OnboardingDismiss       []string // substrings that indicate a dialog to dismiss with Enter
