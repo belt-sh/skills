@@ -413,3 +413,25 @@ var All = map[string]Harness{
 		CanInject:        true,
 	},
 }
+
+// Investigated but not added:
+//
+// Amp (@ampcode/cli) — Uses Rivet WebSocket protocol (/actors endpoint).
+//   The CLI is a thin client; the agent loop runs server-side on ampcode.com.
+//   Cannot mock with an HTTP LLM endpoint. Would need a full Rivet actor server.
+//   Has TypeScript plugins via amp.on() with 5 events (tool.call, tool.result,
+//   agent.start, agent.end, session.start). Headless: amp -x "prompt".
+//
+// Kiro (kirodotdev/Kiro) — Amazon-backed, 10 hook events (UserPromptSubmit,
+//   PreToolUse, PostToolUse, SessionStart, Stop, PreTaskExec, PostTaskExec,
+//   PostFileSave, PostFileCreate, PostFileDelete). JSON v1 format in
+//   .kiro/hooks/<id>.json. No BYOK — uses Bedrock internally, no custom
+//   endpoint support. Open feature request: github.com/kirodotdev/Kiro/issues/695.
+//   Headless: kiro-cli chat --no-interactive "prompt". Auth: KIRO_API_KEY.
+//
+// Aider (aider-chat on PyPI) — No hook/plugin system. Has --lint-cmd and
+//   --test-cmd post-edit hooks only. BYOK via OPENAI_API_BASE + OPENAI_API_KEY.
+//   Headless: aider --message "prompt" --yes-always.
+//
+// Cursor / Windsurf / Cline / Roo — IDE extensions only, no standalone CLI.
+//   Cursor has JSONFlat hook format but runs inside VS Code.

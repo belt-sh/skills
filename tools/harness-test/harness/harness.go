@@ -4,8 +4,8 @@ package harness
 type HookFormat int
 
 const (
-	JSONNested  HookFormat = iota // Claude, Codex, Grok, Droid, Qoder
-	JSONFlat                      // Cursor, Windsurf
+	JSONNested  HookFormat = iota // Claude, Codex, Grok, Droid, Goose, Gemini, Qwen
+	JSONFlat                      // Cursor, Windsurf (IDE-only, no CLI)
 	JSONCopilot                   // Copilot v1 format (version field, bash field)
 	TOML                          // Kimi
 	YAML                          // Hermes
@@ -17,10 +17,10 @@ const (
 type APIFormat int
 
 const (
-	OpenAI    APIFormat = iota // /v1/chat/completions
-	Responses                  // /v1/responses (Codex)
-	Anthropic                  // /v1/messages
-	Gemini                     // /v1beta/models/:model:streamGenerateContent
+	OpenAI    APIFormat = iota // /v1/chat/completions (Copilot, Hermes, Pi, Kimi, Goose, Qwen, Droid)
+	Responses                  // /v1/responses (Codex, Grok, OpenCode, Kilo)
+	Anthropic                  // /v1/messages (Claude)
+	Gemini                     // /v1beta/models/:model:streamGenerateContent (Gemini CLI)
 )
 
 // ConfigFile is a file to write relative to $HOME before running the harness.
