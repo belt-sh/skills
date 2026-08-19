@@ -99,7 +99,7 @@ func (r *Runner) Run() Result {
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
 		if r.harness.HooksInHeadless {
 			if r.server != nil && hasToolHooks {
-				r.server.PrepareToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs, r.harness.ToolCallPath, r.harness.ForceToolCall)
+				r.server.PrepareToolCall(r.harness.ToolCallName, r.expand(r.harness.ToolCallArgs), r.harness.ToolCallPath, r.harness.ForceToolCall)
 			}
 			r.runHeadless()
 			r.checkHookEvents("headless")
@@ -111,7 +111,7 @@ func (r *Runner) Run() Result {
 		os.Remove("/tmp/belt-hook-events.log")
 		r.server.ClearLog()
 		if r.server != nil && hasToolHooks {
-			r.server.PrepareToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs, r.harness.ToolCallPath, r.harness.ForceToolCall)
+			r.server.PrepareToolCall(r.harness.ToolCallName, r.expand(r.harness.ToolCallArgs), r.harness.ToolCallPath, r.harness.ForceToolCall)
 		}
 		r.runInteractive()
 		if r.harness.NeedsAuthForInteractive {
@@ -508,7 +508,11 @@ func (r *Runner) runInteractive() {
 
 	r.lastOutput = session.Output()
 	if os.Getenv("HARNESS_DEBUG") != "" {
-		fmt.Printf("    [debug] PTY output (%d bytes)\n", len(r.lastOutput))
+		stripped := stripANSI(r.lastOutput)
+		if len(stripped) > 500 {
+			stripped = stripped[len(stripped)-500:]
+		}
+		fmt.Printf("    [debug] PTY output (%d bytes):\n%s\n", len(r.lastOutput), stripped)
 	}
 
 	r.pass("interactive session completed")
