@@ -115,12 +115,12 @@ var All = map[string]Harness{
 		NeedsGitRepo:        true,
 		HooksInHeadless:     true,
 		InteractiveCmd: []string{"codex"},
-		InteractiveArgs: append([]string{
+		InteractiveArgs: append(append([]string{
 			"--dangerously-bypass-hook-trust",
-		}, codexProviderArgs...),
-		ExitCommand:                "/exit",
-		HooksInInteractive:         true,
-		NeedsAuthForInteractive:    true,
+		}, codexProviderArgs...), "What is the project codename? Reply ONLY the codename."),
+		InteractivePromptInArgs: true,
+		ExitCommand:             "/exit",
+		HooksInInteractive:      true,
 		CanInject:                  true,
 	},
 	"copilot": {
