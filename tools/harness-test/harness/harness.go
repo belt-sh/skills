@@ -71,6 +71,7 @@ type Harness struct {
 	ExitCommand            string
 	HooksInInteractive     bool
 	NeedsAuthForInteractive bool // TUI requires OAuth login (can't test hooks without real auth)
+	OnboardingDismiss      []string // substrings that indicate a dialog to dismiss with Enter
 
 	// Setup
 	PreserveHome bool // don't override HOME (harness needs installed plugins)

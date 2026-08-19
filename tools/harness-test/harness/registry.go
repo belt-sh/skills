@@ -45,6 +45,7 @@ var All = map[string]Harness{
 		ExitCommand:                "/exit",
 		HooksInInteractive:         true,
 		NeedsAuthForInteractive:    true,
+		OnboardingDismiss:          []string{"theme", "Theme", "style", "trust", "Trust", "onboarding"},
 		CanInject:                  true,
 	},
 	"codex": {
@@ -69,7 +70,6 @@ var All = map[string]Harness{
 			Stop:         "Stop",
 			PreCompact:   "PreCompact",
 		},
-		PreserveHome:    true,
 		SkillsDir:          ".agents/skills",
 		HeadlessCmd:         []string{"codex", "exec"},
 		HeadlessModelArgs: append([]string{
@@ -186,6 +186,7 @@ var All = map[string]Harness{
 		},
 		ConfigFiles: []ConfigFile{
 			{Path: ".hermes/.env", Content: "OPENROUTER_API_KEY={{.APIKey}}\n"},
+			{Path: ".hermes/config.yaml", Content: "model:\n  default: {{.Model}}\n  provider: openrouter\n  base_url: {{.BaseURL}}/v1\nhooks: {}\nhooks_auto_accept: true\n"},
 		},
 		HeadlessCmd:          []string{"hermes", "chat", "-q"},
 		HeadlessModelArgs:    []string{"-m", "{{.Model}}", "--provider", "openrouter", "--accept-hooks"},

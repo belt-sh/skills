@@ -244,11 +244,10 @@ func (r *Runner) writeHooks() {
 			r.harness.Events.PromptSubmit, copilotPromptCmd, r.harness.Events.Stop, stopCmd)
 
 	case harness.YAML:
-		filename = "config.yaml"
 		scriptDir := filepath.Join(r.home, ".hermes", "test-hooks")
 		os.MkdirAll(scriptDir, 0755)
 
-		yamlHooks := ""
+		yamlHooks := "hooks:\n"
 		for _, e := range r.eventEntries() {
 			script := filepath.Join(scriptDir, e.Tag+".sh")
 			body := fmt.Sprintf("#!/bin/sh\ncat - >/dev/null\necho %s >> %s\n", e.Tag, logPath)
@@ -258,8 +257,12 @@ func (r *Runner) writeHooks() {
 			os.WriteFile(script, []byte(body), 0755)
 			yamlHooks += fmt.Sprintf("  %s:\n    - command: %s\n      timeout: 5\n", e.Event, script)
 		}
-		content = fmt.Sprintf("model:\n  default: %s\n  provider: openrouter\n  base_url: %s/v1\nhooks:\n%shooks_auto_accept: true\n",
-			r.harness.DefaultModel, r.baseURL, yamlHooks)
+		// Append hooks to existing config.yaml (model config comes from ConfigFiles)
+		cfgPath := filepath.Join(r.home, r.harness.HookConfigDir, "config.yaml")
+		existing, _ := os.ReadFile(cfgPath)
+		existingStr := strings.Replace(string(existing), "hooks: {}", "", 1)
+		content = existingStr + yamlHooks
+		filename = "config.yaml"
 
 	case harness.TSExtension:
 		filename = "belt-test.ts"
@@ -409,23 +412,28 @@ func (r *Runner) runInteractive() {
 	defer session.Close()
 
 	time.Sleep(3 * time.Second)
-	for i := 0; i < 15; i++ {
-		out := session.Output()
-		if strings.Contains(out, "theme") || strings.Contains(out, "Theme") ||
-			strings.Contains(out, "onboarding") || strings.Contains(out, "style") {
-			session.SendLine("")
-			time.Sleep(3 * time.Second)
-			continue
+	if len(r.harness.OnboardingDismiss) > 0 {
+		for i := 0; i < 15; i++ {
+			out := session.Output()
+			dismissed := false
+			for _, pattern := range r.harness.OnboardingDismiss {
+				if strings.Contains(out, pattern) {
+					session.SendLine("")
+					time.Sleep(2 * time.Second)
+					dismissed = true
+					break
+				}
+			}
+			if dismissed {
+				continue
+			}
+			if len(out) > 200 {
+				break
+			}
+			time.Sleep(1 * time.Second)
 		}
-		if strings.Contains(out, "trust") || strings.Contains(out, "Trust") {
-			session.SendLine("")
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		if len(out) > 200 {
-			break
-		}
-		time.Sleep(1 * time.Second)
+	} else {
+		_, _ = session.WaitForAny([]string{">", "❯", "$", "?"}, 15*time.Second)
 	}
 	r.pass("TUI started")
 
