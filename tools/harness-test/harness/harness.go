@@ -20,6 +20,7 @@ const (
 	OpenAI    APIFormat = iota // /v1/chat/completions
 	Responses                  // /v1/responses (Codex)
 	Anthropic                  // /v1/messages
+	Gemini                     // /v1beta/models/:model:streamGenerateContent
 )
 
 // ConfigFile is a file to write relative to $HOME before running the harness.

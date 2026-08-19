@@ -233,7 +233,7 @@ func (r *Runner) writeHooks() {
 		filename = "belt.json"
 		hooksJSON := r.buildNestedHooksJSON(logPath)
 		if r.harness.HookWrapper != "" {
-			content = fmt.Sprintf(r.harness.HookWrapper, hooksJSON)
+			content = r.expand(fmt.Sprintf(r.harness.HookWrapper, hooksJSON))
 			filename = r.harness.HookFileName
 		} else {
 			content = fmt.Sprintf(`{"hooks":%s}`, hooksJSON)

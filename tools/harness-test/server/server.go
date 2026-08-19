@@ -51,6 +51,10 @@ func New() *MockServer {
 		mux.HandleFunc("GET "+prefix+"/models", s.handleModels)
 	}
 
+	// Gemini API
+	mux.HandleFunc("POST /v1beta/models/", s.handleGemini)
+	mux.HandleFunc("POST /v1alpha/models/", s.handleGemini)
+
 	// Harness management endpoints (Grok auth, settings, sessions)
 	stub := s.handleGrokJSON(map[string]any{})
 	settings := s.handleGrokJSON(map[string]any{"models": map[string]any{"default": "mock-model"}})

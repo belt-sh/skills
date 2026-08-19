@@ -119,6 +119,8 @@ func apiName(f harness.APIFormat) string {
 		return "Resp"
 	case harness.Anthropic:
 		return "Anthro"
+	case harness.Gemini:
+		return "Gemini"
 	default:
 		return "?"
 	}
