@@ -290,6 +290,20 @@ func (r *Runner) writeHooks() {
 		}
 		content = fmt.Sprintf("export default function (pi: any) {\n%s}\n", tsHooks)
 
+	case harness.TOML:
+		filename = "config.toml"
+		cfgPath := filepath.Join(r.home, r.harness.HookConfigDir, "config.toml")
+		existing, _ := os.ReadFile(cfgPath)
+		tomlHooks := ""
+		for _, e := range r.eventEntries() {
+			cmd := fmt.Sprintf("echo %s >> %s", e.Tag, logPath)
+			if e.Tag == "PROMPT" {
+				cmd += fmt.Sprintf(" && echo 'The project codename is %s.'", r.injectCode)
+			}
+			tomlHooks += fmt.Sprintf("\n[[hooks]]\nevent = \"%s\"\ncommand = \"%s\"\ntimeout = 10\n", e.Event, cmd)
+		}
+		content = string(existing) + tomlHooks
+
 	case harness.TSPlugin:
 		filename = "belt-test.ts"
 		var hookParts []string
