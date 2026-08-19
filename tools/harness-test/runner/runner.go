@@ -113,6 +113,7 @@ func (r *Runner) Run() Result {
 		r.server.ClearLog()
 		if r.server != nil && hasToolHooks {
 			r.server.SetToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs)
+			r.server.SetToolCallPath(r.harness.ToolCallPath)
 			r.server.SetToolCallMode(true)
 		}
 		r.runInteractive()

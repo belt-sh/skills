@@ -4,7 +4,16 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 )
+
+func newResponse(id, status string, output []ResponseItem, usage *Usage) ResponseObject {
+	ts := time.Now().Unix()
+	return ResponseObject{
+		ID: id, Object: "response", Created: ts, CreatedAt: ts,
+		Status: status, Output: output, Usage: usage,
+	}
+}
 
 func (s *MockServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
@@ -13,7 +22,7 @@ func (s *MockServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	var req llmRequest
 	json.Unmarshal(body, &req)
 
-	if s.shouldToolCall(req.hasTools()) {
+	if s.shouldToolCall(req.hasTools(), r.URL.Path) {
 		s.responsesToolCall(w)
 		return
 	}
@@ -29,7 +38,7 @@ func (s *MockServer) responsesText(w http.ResponseWriter, text string) {
 
 	events := []sseEvent{
 		typed("response.created", map[string]any{
-			"response": ResponseObject{ID: "mock-resp-1", Status: "in_progress"},
+			"response": newResponse("mock-resp-1", "in_progress", nil, nil),
 		}),
 		typed("response.output_item.added", map[string]any{
 			"output_index": 0, "item": emptyMsg,
@@ -50,11 +59,8 @@ func (s *MockServer) responsesText(w http.ResponseWriter, text string) {
 			"output_index": 0, "item": msg,
 		}),
 		typed("response.completed", map[string]any{
-			"response": ResponseObject{
-				ID: "mock-resp-1", Status: "completed",
-				Output: []ResponseItem{msg},
-				Usage:  &Usage{InputTokens: 10, OutputTokens: 5, TotalTokens: 15},
-			},
+			"response": newResponse("mock-resp-1", "completed", []ResponseItem{msg},
+				&Usage{InputTokens: 10, OutputTokens: 5, TotalTokens: 15}),
 		}),
 	}
 	streamSSEEvents(w, events)
@@ -73,7 +79,7 @@ func (s *MockServer) responsesToolCall(w http.ResponseWriter) {
 
 	events := []sseEvent{
 		typed("response.created", map[string]any{
-			"response": ResponseObject{ID: "mock-resp-tc", Status: "in_progress"},
+			"response": newResponse("mock-resp-tc", "in_progress", nil, nil),
 		}),
 		typed("response.output_item.added", map[string]any{
 			"response_id": "mock-resp-tc", "output_index": 0, "item": fc,
@@ -88,11 +94,8 @@ func (s *MockServer) responsesToolCall(w http.ResponseWriter) {
 			"response_id": "mock-resp-tc", "output_index": 0, "item": fcDone,
 		}),
 		typed("response.completed", map[string]any{
-			"response": ResponseObject{
-				ID: "mock-resp-tc", Status: "completed",
-				Output: []ResponseItem{fcDone},
-				Usage:  &Usage{InputTokens: 10, OutputTokens: 12, TotalTokens: 22},
-			},
+			"response": newResponse("mock-resp-tc", "completed", []ResponseItem{fcDone},
+				&Usage{InputTokens: 10, OutputTokens: 12, TotalTokens: 22}),
 		}),
 	}
 	streamSSEEvents(w, events)

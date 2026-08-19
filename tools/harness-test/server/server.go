@@ -30,6 +30,7 @@ type MockServer struct {
 	toolCallMode bool
 	toolName     string
 	toolArgs     string
+	toolCallPath string // only fire tool calls for requests to this path suffix
 }
 
 func New() *MockServer {
@@ -152,13 +153,22 @@ func (s *MockServer) getToolCall() (string, string) {
 	return "Read", `{"file_path":"README.md"}`
 }
 
-func (s *MockServer) shouldToolCall(hasTools bool) bool {
+func (s *MockServer) SetToolCallPath(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.toolCallPath = path
+}
+
+func (s *MockServer) shouldToolCall(hasTools bool, requestPath string) bool {
 	if !hasTools {
 		return false
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.toolCallMode {
+		if s.toolCallPath != "" && !strings.HasSuffix(requestPath, s.toolCallPath) {
+			return false
+		}
 		s.toolCallMode = false
 		return true
 	}

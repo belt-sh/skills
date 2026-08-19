@@ -21,6 +21,7 @@ func (r llmRequest) modelOrDefault() string {
 type ChatCompletion struct {
 	ID      string       `json:"id"`
 	Object  string       `json:"object"`
+	Created int64        `json:"created"`
 	Model   string       `json:"model"`
 	Choices []ChatChoice `json:"choices"`
 	Usage   *Usage       `json:"usage,omitempty"`
@@ -78,10 +79,13 @@ type AntUsage struct {
 // OpenAI Responses API types
 
 type ResponseObject struct {
-	ID     string         `json:"id"`
-	Status string         `json:"status"`
-	Output []ResponseItem `json:"output"`
-	Usage  *Usage         `json:"usage,omitempty"`
+	ID        string         `json:"id"`
+	Object    string         `json:"object,omitempty"`
+	Created   int64          `json:"created"`
+	CreatedAt int64          `json:"created_at"`
+	Status    string         `json:"status"`
+	Output    []ResponseItem `json:"output"`
+	Usage     *Usage         `json:"usage,omitempty"`
 }
 
 type ResponseItem struct {

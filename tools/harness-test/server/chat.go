@@ -5,7 +5,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
+
+func newChat(id, object, model string, choices []ChatChoice, usage *Usage) ChatCompletion {
+	return ChatCompletion{
+		ID: id, Object: object, Created: time.Now().Unix(),
+		Model: model, Choices: choices, Usage: usage,
+	}
+}
 
 func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
@@ -15,7 +23,7 @@ func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Reques
 	json.Unmarshal(body, &req)
 	model := req.modelOrDefault()
 
-	if s.shouldToolCall(req.hasTools()) {
+	if s.shouldToolCall(req.hasTools(), r.URL.Path) {
 		s.chatToolCall(w, model, req.Stream)
 		return
 	}
@@ -26,27 +34,21 @@ func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	writeJSON(w, ChatCompletion{
-		ID: "mock-1", Object: "chat.completion", Model: model,
-		Choices: []ChatChoice{{
+	writeJSON(w, newChat("mock-1", "chat.completion", model,
+		[]ChatChoice{{
 			Message:      &ChatMessage{Role: "assistant", Content: text},
 			FinishReason: "stop",
 		}},
-		Usage: &Usage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
-	})
+		&Usage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+	))
 }
 
 func (s *MockServer) chatStream(w http.ResponseWriter, model, text string) {
 	f := beginSSE(w)
-
-	streamData(w, f, ChatCompletion{
-		ID: "mock-1", Object: "chat.completion.chunk", Model: model,
-		Choices: []ChatChoice{{Delta: &ChatMessage{Role: "assistant", Content: text}}},
-	})
-	streamData(w, f, ChatCompletion{
-		ID: "mock-1", Object: "chat.completion.chunk", Model: model,
-		Choices: []ChatChoice{{Delta: &ChatMessage{}, FinishReason: "stop"}},
-	})
+	streamData(w, f, newChat("mock-1", "chat.completion.chunk", model,
+		[]ChatChoice{{Delta: &ChatMessage{Role: "assistant", Content: text}}}, nil))
+	streamData(w, f, newChat("mock-1", "chat.completion.chunk", model,
+		[]ChatChoice{{Delta: &ChatMessage{}, FinishReason: "stop"}}, nil))
 	fmt.Fprint(w, "data: [DONE]\n\n")
 	if f != nil {
 		f.Flush()
@@ -63,14 +65,10 @@ func (s *MockServer) chatToolCall(w http.ResponseWriter, model string, stream bo
 
 	if stream {
 		f := beginSSE(w)
-		streamData(w, f, ChatCompletion{
-			ID: "mock-tc", Object: "chat.completion.chunk", Model: model,
-			Choices: []ChatChoice{{Delta: &ChatMessage{Role: "assistant", ToolCalls: []ToolCall{tc}}}},
-		})
-		streamData(w, f, ChatCompletion{
-			ID: "mock-tc", Object: "chat.completion.chunk", Model: model,
-			Choices: []ChatChoice{{Delta: &ChatMessage{}, FinishReason: "tool_calls"}},
-		})
+		streamData(w, f, newChat("mock-tc", "chat.completion.chunk", model,
+			[]ChatChoice{{Delta: &ChatMessage{Role: "assistant", ToolCalls: []ToolCall{tc}}}}, nil))
+		streamData(w, f, newChat("mock-tc", "chat.completion.chunk", model,
+			[]ChatChoice{{Delta: &ChatMessage{}, FinishReason: "tool_calls"}}, nil))
 		fmt.Fprint(w, "data: [DONE]\n\n")
 		if f != nil {
 			f.Flush()
@@ -78,12 +76,11 @@ func (s *MockServer) chatToolCall(w http.ResponseWriter, model string, stream bo
 		return
 	}
 
-	writeJSON(w, ChatCompletion{
-		ID: "mock-tc", Object: "chat.completion", Model: model,
-		Choices: []ChatChoice{{
+	writeJSON(w, newChat("mock-tc", "chat.completion", model,
+		[]ChatChoice{{
 			Message:      &ChatMessage{Role: "assistant", ToolCalls: []ToolCall{tc}},
 			FinishReason: "tool_calls",
 		}},
-		Usage: &Usage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
-	})
+		&Usage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+	))
 }

@@ -15,7 +15,7 @@ func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(body, &req)
 	model := req.modelOrDefault()
 
-	if s.shouldToolCall(req.hasTools()) {
+	if s.shouldToolCall(req.hasTools(), r.URL.Path) {
 		s.anthropicToolCall(w, model, req.Stream)
 		return
 	}

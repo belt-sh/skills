@@ -55,6 +55,7 @@ type Harness struct {
 	// Mock tool call configuration
 	ToolCallName string // tool name in mock responses (default: "Read")
 	ToolCallArgs string // JSON args for mock tool call (default: {"file_path":"README.md"})
+	ToolCallPath string // only fire tool calls on requests to this path suffix
 
 	// Pre-flight config files (auth, trust, provider config, permissions)
 	ConfigFiles []ConfigFile
