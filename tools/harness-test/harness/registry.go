@@ -118,6 +118,7 @@ var All = map[string]Harness{
 		InteractiveCmd: []string{"codex"},
 		InteractiveArgs: append(append([]string{
 			"--dangerously-bypass-hook-trust",
+			"-a", "never",
 		}, codexProviderArgs...), "What is the project codename? Reply ONLY the codename."),
 		InteractivePromptInArgs: true,
 		ExitCommand:             "/exit",
