@@ -495,6 +495,10 @@ func (r *Runner) runInteractive() {
 		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server"}, 30*time.Second)
 		time.Sleep(3 * time.Second)
 	}
+	if r.harness.CompactCommand != "" {
+		session.SendLine(r.harness.CompactCommand)
+		time.Sleep(5 * time.Second)
+	}
 	if !r.harness.InteractivePromptInArgs && r.harness.ExitCommand != "" {
 		session.SendLine(r.harness.ExitCommand)
 		time.Sleep(5 * time.Second)
