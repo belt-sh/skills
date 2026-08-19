@@ -68,6 +68,14 @@ func New() *MockServer {
 	mux.HandleFunc("POST /sessions/{id}/data", s.handleGrokRecord)
 	mux.HandleFunc("PUT /sessions/{id}", s.handleGrokRecord)
 
+	// Droid (Factory) auth stubs
+	mux.HandleFunc("GET /api/cli/whoami", s.handleGrokJSON(map[string]any{
+		"userId": "mock-user-001", "orgId": "mock-org-001", "region": "global",
+	}))
+	mux.HandleFunc("GET /api/cli/org", s.handleGrokJSON(map[string]any{
+		"id": "mock-org-001", "name": "Mock Org",
+	}))
+
 	// Test utilities
 	mux.HandleFunc("GET /log", s.handleGetLog)
 	mux.HandleFunc("GET /log/count", s.handleLogCount)

@@ -309,7 +309,11 @@ var All = map[string]Harness{
 		Name: "droid", Binary: "droid",
 		InstallCmd: []string{"npm", "install", "-g", "droid"},
 		APIFormat: OpenAI,
-		EndpointEnvVars: map[string]string{},
+		EndpointEnvVars: map[string]string{
+			"FACTORY_API_BASE_URL": "{{.BaseURL}}",
+			"FACTORY_API_KEY":      "fk-mock-key-0123456789abcdef0123",
+			"FACTORY_DISABLE_KEYRING": "1",
+		},
 		APIKeyEnvVar:    "",
 		DefaultModel:    "mock-model",
 		ToolCallName:    "Read",
@@ -338,7 +342,6 @@ var All = map[string]Harness{
 		InteractiveArgs:  []string{"-m", "{{.Model}}"},
 		ExitCommand:      "/exit",
 		HooksInInteractive:    true,
-		NeedsAuthForInteractive: true,
 		CanInject:        true,
 	},
 }
