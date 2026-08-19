@@ -99,7 +99,7 @@ func (r *Runner) Run() Result {
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
 		if r.harness.HooksInHeadless {
 			if r.server != nil && hasToolHooks {
-				r.server.PrepareToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs, r.harness.ToolCallPath)
+				r.server.PrepareToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs, r.harness.ToolCallPath, r.harness.ForceToolCall)
 			}
 			r.runHeadless()
 			r.checkHookEvents("headless")
@@ -111,7 +111,7 @@ func (r *Runner) Run() Result {
 		os.Remove("/tmp/belt-hook-events.log")
 		r.server.ClearLog()
 		if r.server != nil && hasToolHooks {
-			r.server.PrepareToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs, r.harness.ToolCallPath)
+			r.server.PrepareToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs, r.harness.ToolCallPath, r.harness.ForceToolCall)
 		}
 		r.runInteractive()
 		if r.harness.NeedsAuthForInteractive {
@@ -297,7 +297,15 @@ func (r *Runner) writeHooks() {
 			if e.Tag == "PROMPT" {
 				cmd += fmt.Sprintf(" && echo 'The project codename is %s.'", r.injectCode)
 			}
-			tomlHooks += fmt.Sprintf("\n[[hooks]]\nevent = \"%s\"\ncommand = \"%s\"\ntimeout = 10\n", e.Event, cmd)
+			if e.Tag == "PRE_TOOL" || e.Tag == "POST_TOOL" {
+				matcher := r.harness.ToolCallName
+				if matcher == "" {
+					matcher = server.DefaultToolName
+				}
+				tomlHooks += fmt.Sprintf("\n[[hooks]]\nevent = \"%s\"\nmatcher = \"%s\"\ncommand = \"%s\"\ntimeout = 10\n", e.Event, matcher, cmd)
+			} else {
+				tomlHooks += fmt.Sprintf("\n[[hooks]]\nevent = \"%s\"\ncommand = \"%s\"\ntimeout = 10\n", e.Event, cmd)
+			}
 		}
 		content = string(existing) + tomlHooks
 

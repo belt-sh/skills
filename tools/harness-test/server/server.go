@@ -33,7 +33,8 @@ type MockServer struct {
 	toolCallMode bool
 	toolName     string
 	toolArgs     string
-	toolCallPath string
+	toolCallPath  string
+	forceToolCall bool
 }
 
 func New() *MockServer {
@@ -90,13 +91,14 @@ func (s *MockServer) SetResponse(text string) {
 	s.response = text
 }
 
-func (s *MockServer) PrepareToolCall(name, args, path string) {
+func (s *MockServer) PrepareToolCall(name, args, path string, force bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.toolName = name
 	s.toolArgs = args
 	s.toolCallPath = path
 	s.toolCallMode = true
+	s.forceToolCall = force
 }
 
 func (s *MockServer) LogCount() int {
@@ -153,11 +155,11 @@ func (s *MockServer) getToolCall() (string, string) {
 }
 
 func (s *MockServer) shouldToolCall(hasTools bool, requestPath string) bool {
-	if !hasTools {
-		return false
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !hasTools && !s.forceToolCall {
+		return false
+	}
 	if s.toolCallMode {
 		if s.toolCallPath != "" && !strings.HasSuffix(requestPath, s.toolCallPath) {
 			return false

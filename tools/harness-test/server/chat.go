@@ -52,6 +52,7 @@ func (s *MockServer) chatStream(w http.ResponseWriter, model, text string) {
 func (s *MockServer) chatToolCall(w http.ResponseWriter, model string, stream bool) {
 	name, args := s.getToolCall()
 	tc := ToolCall{
+		Index:    0,
 		ID:       "call_mock_1",
 		Type:     "function",
 		Function: FunctionCall{Name: name, Arguments: args},

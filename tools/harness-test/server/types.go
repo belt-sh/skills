@@ -2,12 +2,13 @@ package server
 
 // Shared request fields — only the fields we need to extract.
 type llmRequest struct {
-	Model  string `json:"model"`
-	Stream bool   `json:"stream"`
-	Tools  []any  `json:"tools,omitempty"`
+	Model     string `json:"model"`
+	Stream    bool   `json:"stream"`
+	Tools     []any  `json:"tools,omitempty"`
+	Functions []any  `json:"functions,omitempty"`
 }
 
-func (r llmRequest) hasTools() bool { return len(r.Tools) > 0 }
+func (r llmRequest) hasTools() bool { return len(r.Tools) > 0 || len(r.Functions) > 0 }
 
 func (r llmRequest) modelOrDefault() string {
 	if r.Model != "" {
@@ -41,8 +42,9 @@ type ChatMessage struct {
 }
 
 type ToolCall struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
+	Index    int          `json:"index"`
+	ID       string       `json:"id,omitempty"`
+	Type     string       `json:"type,omitempty"`
 	Function FunctionCall `json:"function"`
 }
 

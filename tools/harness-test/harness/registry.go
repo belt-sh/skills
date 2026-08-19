@@ -306,7 +306,7 @@ var All = map[string]Harness{
 	"droid": {
 		Name: "droid", Binary: "droid",
 		InstallCmd: []string{"npm", "install", "-g", "droid"},
-		APIFormat: OpenAI,
+		APIFormat: Responses,
 		EndpointEnvVars: map[string]string{},
 		APIKeyEnvVar:    "",
 		DefaultModel:    "mock-model",
@@ -323,7 +323,7 @@ var All = map[string]Harness{
 			PreCompact:   "PreCompact",
 		},
 		ConfigFiles: []ConfigFile{
-			{Path: ".factory/settings.json", Content: `{"customModels":[{"model":"mock-model","displayName":"Mock","baseUrl":"{{.BaseURL}}/v1","apiKey":"mock-key","provider":"openai","maxOutputTokens":4096}]}`},
+			{Path: ".factory/settings.json", Content: `{"customModels":[{"model":"mock-model","displayName":"Mock","baseUrl":"{{.BaseURL}}","apiKey":"mock-key","provider":"openai","maxOutputTokens":4096}]}`},
 		},
 		SkillsDir:       ".factory-plugin/skills",
 		NeedsGitRepo:    true,
