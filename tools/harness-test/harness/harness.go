@@ -52,6 +52,10 @@ type Harness struct {
 	HookWrapper   string // JSON to wrap hooks in (e.g. Claude's permissions + hooks)
 	Events        Events
 
+	// Mock tool call configuration
+	ToolCallName string // tool name in mock responses (default: "Read")
+	ToolCallArgs string // JSON args for mock tool call (default: {"file_path":"README.md"})
+
 	// Pre-flight config files (auth, trust, provider config, permissions)
 	ConfigFiles []ConfigFile
 

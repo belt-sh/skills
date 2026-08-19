@@ -12,13 +12,12 @@ import (
 )
 
 type LogEntry struct {
-	Timestamp     time.Time         `json:"ts"`
-	Method        string            `json:"method"`
-	Path          string            `json:"path"`
-	Headers       map[string]string `json:"headers,omitempty"`
-	Body          json.RawMessage   `json:"body,omitempty"`
-	Model         string            `json:"model,omitempty"`
-	ResponseModel string           `json:"response_model,omitempty"`
+	Timestamp time.Time         `json:"ts"`
+	Method    string            `json:"method"`
+	Path      string            `json:"path"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	Body      json.RawMessage   `json:"body,omitempty"`
+	Model     string            `json:"model,omitempty"`
 }
 
 type MockServer struct {
@@ -27,8 +26,10 @@ type MockServer struct {
 
 	mu           sync.Mutex
 	log          []LogEntry
-	response     string // default response text
-	toolCallMode bool   // respond with a tool call first, then text
+	response     string
+	toolCallMode bool
+	toolName     string
+	toolArgs     string
 }
 
 func New() *MockServer {
@@ -37,26 +38,19 @@ func New() *MockServer {
 	}
 	mux := http.NewServeMux()
 
-	// OpenAI Chat Completions
 	mux.HandleFunc("POST /v1/chat/completions", s.handleChatCompletions)
-
-	// OpenAI Responses API
 	mux.HandleFunc("POST /v1/responses", s.handleResponses)
 	mux.HandleFunc("POST /responses", s.handleResponses)
-
-	// Anthropic Messages
 	mux.HandleFunc("POST /v1/messages", s.handleMessages)
 	mux.HandleFunc("POST /messages", s.handleMessages)
-
-	// Model listing
 	mux.HandleFunc("GET /v1/models", s.handleModels)
 
-	// Grok-specific endpoints
-	mux.HandleFunc("GET /v1/user", s.handleUser)
-	mux.HandleFunc("GET /v1/settings", s.handleSettings)
-	mux.HandleFunc("GET /v1/privacy/coding-data-retention", s.handlePrivacy)
-	mux.HandleFunc("POST /sessions/{id}/data", s.handleSessionData)
-	mux.HandleFunc("PUT /sessions/{id}", s.handleSessionUpdate)
+	// Grok-specific
+	mux.HandleFunc("GET /v1/user", s.handleGrokJSON(map[string]any{"userId": "mock-user", "email": "mock@test.invalid"}))
+	mux.HandleFunc("GET /v1/settings", s.handleGrokJSON(map[string]any{"models": map[string]any{"default": "mock-model"}}))
+	mux.HandleFunc("GET /v1/privacy/coding-data-retention", s.handleGrokJSON(map[string]any{"opted_out": false}))
+	mux.HandleFunc("POST /sessions/{id}/data", s.handleGrokRecord)
+	mux.HandleFunc("PUT /sessions/{id}", s.handleGrokRecord)
 
 	// Test utilities
 	mux.HandleFunc("GET /log", s.handleGetLog)
@@ -67,6 +61,8 @@ func New() *MockServer {
 	s.srv = &http.Server{Handler: mux}
 	return s
 }
+
+// --- Public API ---
 
 func (s *MockServer) SetResponse(text string) {
 	s.mu.Lock()
@@ -80,14 +76,11 @@ func (s *MockServer) SetToolCallMode(on bool) {
 	s.toolCallMode = on
 }
 
-func (s *MockServer) shouldToolCall() bool {
+func (s *MockServer) SetToolCall(name, args string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.toolCallMode {
-		s.toolCallMode = false
-		return true
-	}
-	return false
+	s.toolName = name
+	s.toolArgs = args
 }
 
 func (s *MockServer) LogCount() int {
@@ -126,6 +119,36 @@ func (s *MockServer) Close() {
 	}
 }
 
+// --- Internal helpers ---
+
+func (s *MockServer) getResponse() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.response
+}
+
+func (s *MockServer) getToolCall() (string, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.toolName != "" {
+		return s.toolName, s.toolArgs
+	}
+	return "Read", `{"file_path":"README.md"}`
+}
+
+func (s *MockServer) shouldToolCall(hasTools bool) bool {
+	if !hasTools {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.toolCallMode {
+		s.toolCallMode = false
+		return true
+	}
+	return false
+}
+
 func (s *MockServer) record(r *http.Request, body []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -136,11 +159,11 @@ func (s *MockServer) record(r *http.Request, body []byte) {
 	}
 
 	var model string
-	var parsed map[string]any
+	var parsed struct {
+		Model string `json:"model"`
+	}
 	if json.Unmarshal(body, &parsed) == nil {
-		if m, ok := parsed["model"].(string); ok {
-			model = m
-		}
+		model = parsed.Model
 	}
 
 	s.log = append(s.log, LogEntry{
@@ -153,261 +176,26 @@ func (s *MockServer) record(r *http.Request, body []byte) {
 	})
 }
 
-func (s *MockServer) getResponse() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.response
-}
+// --- Handlers: models, test endpoints, Grok ---
 
-// POST /v1/chat/completions — OpenAI format
-func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	s.record(r, body)
-
-	var req map[string]any
-	json.Unmarshal(body, &req)
-
-	stream, _ := req["stream"].(bool)
-	model, _ := req["model"].(string)
-	if model == "" {
-		model = "mock-model"
-	}
-
-	text := s.getResponse()
-
-	if s.shouldToolCall() {
-		s.handleChatToolCall(w, model, stream)
-		return
-	}
-
-	if stream {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.WriteHeader(200)
-
-		fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]any{
-			"id": "mock-1", "object": "chat.completion.chunk", "model": model,
-			"choices": []any{map[string]any{
-				"index": 0, "delta": map[string]any{"role": "assistant", "content": text},
-			}},
-		}))
-		fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]any{
-			"id": "mock-1", "object": "chat.completion.chunk", "model": model,
-			"choices": []any{map[string]any{
-				"index": 0, "delta": map[string]any{}, "finish_reason": "stop",
-			}},
-		}))
-		fmt.Fprint(w, "data: [DONE]\n\n")
-		if f, ok := w.(http.Flusher); ok {
-			f.Flush()
-		}
-		// stream done — flush is sufficient, [DONE] / message_stop signals EOF
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"id": "mock-1", "object": "chat.completion", "model": model,
-		"choices": []any{map[string]any{
-			"message":       map[string]any{"role": "assistant", "content": text},
-			"finish_reason": "stop", "index": 0,
-		}},
-		"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
-	})
-}
-
-func (s *MockServer) handleChatToolCall(w http.ResponseWriter, model string, stream bool) {
-	toolCall := map[string]any{
-		"id":   "call_mock_1",
-		"type": "function",
-		"function": map[string]any{
-			"name":      "Read",
-			"arguments": `{"file_path":"README.md"}`,
-		},
-	}
-	if stream {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.WriteHeader(200)
-		fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]any{
-			"id": "mock-tc", "object": "chat.completion.chunk", "model": model,
-			"choices": []any{map[string]any{
-				"index": 0, "delta": map[string]any{"role": "assistant", "tool_calls": []any{toolCall}},
-			}},
-		}))
-		fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]any{
-			"id": "mock-tc", "object": "chat.completion.chunk", "model": model,
-			"choices": []any{map[string]any{
-				"index": 0, "delta": map[string]any{}, "finish_reason": "tool_calls",
-			}},
-		}))
-		fmt.Fprint(w, "data: [DONE]\n\n")
-		if f, ok := w.(http.Flusher); ok {
-			f.Flush()
-		}
-		// stream done — flush is sufficient, [DONE] / message_stop signals EOF
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"id": "mock-tc", "object": "chat.completion", "model": model,
-		"choices": []any{map[string]any{
-			"message":       map[string]any{"role": "assistant", "tool_calls": []any{toolCall}},
-			"finish_reason": "tool_calls", "index": 0,
-		}},
-		"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
-	})
-}
-
-// POST /v1/responses and /responses — OpenAI Responses API
-func (s *MockServer) handleResponses(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	s.record(r, body)
-
-	if s.shouldToolCall() {
-		s.handleResponsesToolCall(w)
-		return
-	}
-
-	text := s.getResponse()
-	s.streamResponsesText(w, text)
-}
-
-func (s *MockServer) streamResponsesText(w http.ResponseWriter, text string) {
-	events := []map[string]any{
-		{"type": "response.created", "response": map[string]any{"id": "mock-resp-1", "status": "in_progress", "output": []any{}}},
-		{"type": "response.output_item.added", "output_index": 0, "item": map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": ""}}}},
-		{"type": "response.content_part.added", "output_index": 0, "content_index": 0, "part": map[string]any{"type": "output_text", "text": ""}},
-		{"type": "response.output_text.delta", "output_index": 0, "content_index": 0, "delta": text},
-		{"type": "response.output_text.done", "output_index": 0, "content_index": 0, "text": text},
-		{"type": "response.content_part.done", "output_index": 0, "content_index": 0, "part": map[string]any{"type": "output_text", "text": text}},
-		{"type": "response.output_item.done", "output_index": 0, "item": map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": text}}}},
-		{"type": "response.completed", "response": map[string]any{"id": "mock-resp-1", "status": "completed", "output": []any{map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": text}}}}, "usage": map[string]any{"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}}},
-	}
-	streamTypedSSE(w, events)
-}
-
-func (s *MockServer) handleResponsesToolCall(w http.ResponseWriter) {
-	args := `{"cmd":"cat README.md"}`
-	fcItem := map[string]any{
-		"type": "function_call", "id": "fc_mock_1", "call_id": "call_mock_1",
-		"name": "exec_command", "arguments": "", "status": "in_progress",
-	}
-	fcItemDone := map[string]any{
-		"type": "function_call", "id": "fc_mock_1", "call_id": "call_mock_1",
-		"name": "exec_command", "arguments": args, "status": "completed",
-	}
-
-	events := []map[string]any{
-		{"type": "response.created", "response": map[string]any{"id": "mock-resp-tc", "status": "in_progress", "output": []any{}}},
-		{"type": "response.output_item.added", "response_id": "mock-resp-tc", "output_index": 0, "item": fcItem},
-		{"type": "response.function_call_arguments.delta", "response_id": "mock-resp-tc", "item_id": "fc_mock_1", "output_index": 0, "delta": args},
-		{"type": "response.function_call_arguments.done", "response_id": "mock-resp-tc", "item_id": "fc_mock_1", "output_index": 0, "arguments": args},
-		{"type": "response.output_item.done", "response_id": "mock-resp-tc", "output_index": 0, "item": fcItemDone},
-		{"type": "response.completed", "response": map[string]any{"id": "mock-resp-tc", "status": "completed", "output": []any{fcItemDone}, "usage": map[string]any{"input_tokens": 10, "output_tokens": 12, "total_tokens": 22}}},
-	}
-	streamTypedSSE(w, events)
-}
-
-// POST /v1/messages — Anthropic format
-func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	s.record(r, body)
-
-	var req map[string]any
-	json.Unmarshal(body, &req)
-
-	stream := false
-	if s, ok := req["stream"].(bool); ok {
-		stream = s
-	}
-	model, _ := req["model"].(string)
-	if model == "" {
-		model = "mock-model"
-	}
-
-	text := s.getResponse()
-
-	if s.shouldToolCall() {
-		s.handleAnthropicToolCall(w, model, stream)
-		return
-	}
-
-	if stream {
-		streamRawSSE(w, anthropicTextEvents(model, text))
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"id": "mock-1", "type": "message", "role": "assistant", "model": model,
-		"content":     []any{map[string]any{"type": "text", "text": text}},
-		"stop_reason": "end_turn",
-		"usage":       map[string]any{"input_tokens": 10, "output_tokens": 5},
-	})
-}
-
-func (s *MockServer) handleAnthropicToolCall(w http.ResponseWriter, model string, stream bool) {
-	toolUseBlock := map[string]any{
-		"type": "tool_use", "id": "toolu_mock_1", "name": "Read",
-		"input": map[string]any{"file_path": "README.md"},
-	}
-	if stream {
-		streamRawSSE(w, []string{
-			fmt.Sprintf("event: message_start\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "message_start",
-				"message": map[string]any{"id": "mock-tc", "type": "message", "role": "assistant", "content": []any{}, "model": model},
-			})),
-			fmt.Sprintf("event: content_block_start\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "content_block_start", "index": 0,
-				"content_block": map[string]any{"type": "tool_use", "id": "toolu_mock_1", "name": "Read", "input": map[string]any{}},
-			})),
-			fmt.Sprintf("event: content_block_delta\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "content_block_delta", "index": 0,
-				"delta": map[string]any{"type": "input_json_delta", "partial_json": `{"file_path":"README.md"}`},
-			})),
-			fmt.Sprintf("event: content_block_stop\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "content_block_stop", "index": 0,
-			})),
-			fmt.Sprintf("event: message_delta\ndata: %s\n\n", mustJSON(map[string]any{
-				"type": "message_delta",
-				"delta": map[string]any{"stop_reason": "tool_use"},
-				"usage": map[string]any{"output_tokens": 15},
-			})),
-			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
-		})
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"id": "mock-tc", "type": "message", "role": "assistant", "model": model,
-		"content":     []any{toolUseBlock},
-		"stop_reason": "tool_use",
-		"usage":       map[string]any{"input_tokens": 10, "output_tokens": 15},
-	})
-}
-
-func (s *MockServer) handleModels(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"data": []any{
-			map[string]any{"id": "mock-model", "object": "model", "owned_by": "mock"},
-			map[string]any{"id": "gpt-4o-mini", "object": "model", "owned_by": "mock"},
+func (s *MockServer) handleModels(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, ModelList{
+		Data: []ModelEntry{
+			{ID: "mock-model", Object: "model", OwnedBy: "mock"},
+			{ID: "gpt-4o-mini", Object: "model", OwnedBy: "mock"},
 		},
 	})
 }
 
-func (s *MockServer) handleGetLog(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.Log())
+func (s *MockServer) handleGetLog(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, s.Log())
 }
 
-func (s *MockServer) handleLogCount(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{"count": s.LogCount()})
+func (s *MockServer) handleLogCount(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, map[string]int{"count": s.LogCount()})
 }
 
-func (s *MockServer) handleClearLog(w http.ResponseWriter, r *http.Request) {
+func (s *MockServer) handleClearLog(w http.ResponseWriter, _ *http.Request) {
 	s.ClearLog()
 	w.WriteHeader(204)
 }
@@ -423,71 +211,30 @@ func (s *MockServer) handleSetResponse(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
-func (s *MockServer) handleUser(w http.ResponseWriter, r *http.Request) {
-	s.record(r, nil)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"userId": "mock-user",
-		"email":  "mock@test.invalid",
-	})
-}
-
-func (s *MockServer) handleSettings(w http.ResponseWriter, r *http.Request) {
-	s.record(r, nil)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"models": map[string]any{
-			"default": "mock-model",
-		},
-	})
-}
-
-func (s *MockServer) handlePrivacy(w http.ResponseWriter, r *http.Request) {
-	s.record(r, nil)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"opted_out": false,
-	})
-}
-
-func (s *MockServer) handleSessionData(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	s.record(r, body)
-	w.WriteHeader(200)
-	json.NewEncoder(w).Encode(map[string]any{"ok": true})
-}
-
-func (s *MockServer) handleSessionUpdate(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	s.record(r, body)
-	w.WriteHeader(200)
-	json.NewEncoder(w).Encode(map[string]any{"ok": true})
-}
-
-func anthropicTextEvents(model, text string) []string {
-	return []string{
-		fmt.Sprintf("event: message_start\ndata: %s\n\n", mustJSON(map[string]any{
-			"type": "message_start",
-			"message": map[string]any{"id": "mock-1", "type": "message", "role": "assistant", "content": []any{}, "model": model},
-		})),
-		fmt.Sprintf("event: content_block_start\ndata: %s\n\n", mustJSON(map[string]any{
-			"type": "content_block_start", "index": 0,
-			"content_block": map[string]any{"type": "text", "text": ""},
-		})),
-		fmt.Sprintf("event: content_block_delta\ndata: %s\n\n", mustJSON(map[string]any{
-			"type": "content_block_delta", "index": 0,
-			"delta": map[string]any{"type": "text_delta", "text": text},
-		})),
-		fmt.Sprintf("event: content_block_stop\ndata: %s\n\n", mustJSON(map[string]any{
-			"type": "content_block_stop", "index": 0,
-		})),
-		fmt.Sprintf("event: message_delta\ndata: %s\n\n", mustJSON(map[string]any{
-			"type": "message_delta",
-			"delta": map[string]any{"stop_reason": "end_turn"},
-			"usage": map[string]any{"output_tokens": 5},
-		})),
-		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+func (s *MockServer) handleGrokJSON(data any) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.record(r, nil)
+		writeJSON(w, data)
 	}
+}
+
+func (s *MockServer) handleGrokRecord(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	s.record(r, body)
+	w.WriteHeader(200)
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+// --- SSE helpers ---
+
+type sseEvent struct {
+	Type string
+	Data any
+}
+
+func typed(eventType string, data map[string]any) sseEvent {
+	data["type"] = eventType
+	return sseEvent{Type: eventType, Data: data}
 }
 
 func beginSSE(w http.ResponseWriter) http.Flusher {
@@ -498,11 +245,10 @@ func beginSSE(w http.ResponseWriter) http.Flusher {
 	return f
 }
 
-func streamTypedSSE(w http.ResponseWriter, events []map[string]any) {
+func streamSSEEvents(w http.ResponseWriter, events []sseEvent) {
 	f := beginSSE(w)
 	for _, evt := range events {
-		evtType, _ := evt["type"].(string)
-		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtType, mustJSON(evt))
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.Type, mustJSON(evt.Data))
 		if f != nil {
 			f.Flush()
 		}
@@ -517,6 +263,18 @@ func streamRawSSE(w http.ResponseWriter, events []string) {
 			f.Flush()
 		}
 	}
+}
+
+func streamData(w http.ResponseWriter, f http.Flusher, v any) {
+	fmt.Fprintf(w, "data: %s\n\n", mustJSON(v))
+	if f != nil {
+		f.Flush()
+	}
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(v)
 }
 
 func mustJSON(v any) string {

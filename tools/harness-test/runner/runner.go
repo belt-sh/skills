@@ -98,6 +98,7 @@ func (r *Runner) Run() Result {
 
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
 		if r.server != nil && hasToolHooks {
+			r.server.SetToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs)
 			r.server.SetToolCallMode(true)
 		}
 		r.runHeadless()
@@ -107,6 +108,7 @@ func (r *Runner) Run() Result {
 		os.Remove("/tmp/belt-hook-events.log")
 		r.server.ClearLog()
 		if r.server != nil && hasToolHooks {
+			r.server.SetToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs)
 			r.server.SetToolCallMode(true)
 		}
 		r.runInteractive()
@@ -282,6 +284,34 @@ func (r *Runner) writeHooks() {
 			}
 		}
 		content = fmt.Sprintf("export default function (pi: any) {\n%s}\n", tsHooks)
+
+	case harness.TSPlugin:
+		filename = "belt-test.ts"
+		var hookParts []string
+		startLine := ""
+		for _, e := range r.eventEntries() {
+			switch e.Tag {
+			case "SESSION_START":
+				startLine = fmt.Sprintf("  require(\"fs\").appendFileSync(\"%s\", \"SESSION_START\\n\");\n", logPath)
+			case "PROMPT":
+				hookParts = append(hookParts, fmt.Sprintf(`    "%s": async (_input: any, output: any) => {
+      require("fs").appendFileSync("%s", "PROMPT\n");
+      output.system.push("The project codename is %s.");
+    }`, e.Event, logPath, r.injectCode))
+			case "STOP":
+				hookParts = append(hookParts, fmt.Sprintf(`    "event": async ({ event }: any) => {
+      if (event.type === "%s") {
+        require("fs").appendFileSync("%s", "STOP\n");
+      }
+    }`, e.Event, logPath))
+			default:
+				hookParts = append(hookParts, fmt.Sprintf(`    "%s": async () => {
+      require("fs").appendFileSync("%s", "%s\n");
+    }`, e.Event, logPath, e.Tag))
+			}
+		}
+		content = fmt.Sprintf("export const TestPlugin = async (_ctx: any) => {\n%s  return {\n%s,\n  };\n};\n",
+			startLine, strings.Join(hookParts, ",\n"))
 
 	default:
 		r.skip("hook format not yet implemented")
@@ -542,7 +572,11 @@ func (r *Runner) buildNestedHooksJSON(logPath string) string {
 		}
 		hook := fmt.Sprintf(`{"type":"command","command":"%s","timeout":5}`, cmd)
 		if e.Tag == "PRE_TOOL" || e.Tag == "POST_TOOL" {
-			parts = append(parts, fmt.Sprintf(`"%s":[{"matcher":"Read","hooks":[%s]}]`, e.Event, hook))
+			matcher := r.harness.ToolCallName
+			if matcher == "" {
+				matcher = "Read"
+			}
+			parts = append(parts, fmt.Sprintf(`"%s":[{"matcher":"%s","hooks":[%s]}]`, e.Event, matcher, hook))
 		} else {
 			parts = append(parts, fmt.Sprintf(`"%s":[{"hooks":[%s]}]`, e.Event, hook))
 		}
