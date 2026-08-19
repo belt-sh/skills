@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+const DefaultToolName = "Read"
+const DefaultToolArgs = `{"file_path":"README.md"}`
+
 type LogEntry struct {
 	Timestamp time.Time         `json:"ts"`
 	Method    string            `json:"method"`
@@ -30,7 +33,7 @@ type MockServer struct {
 	toolCallMode bool
 	toolName     string
 	toolArgs     string
-	toolCallPath string // only fire tool calls for requests to this path suffix
+	toolCallPath string
 }
 
 func New() *MockServer {
@@ -50,10 +53,12 @@ func New() *MockServer {
 	// Harness management endpoints (Grok auth, settings, sessions)
 	stub := s.handleGrokJSON(map[string]any{})
 	settings := s.handleGrokJSON(map[string]any{"models": map[string]any{"default": "mock-model"}})
+	user := s.handleGrokJSON(map[string]any{"userId": "mock-user", "email": "mock@test.invalid"})
+	privacy := s.handleGrokJSON(map[string]any{"opted_out": false})
 	for _, prefix := range []string{"/v1", ""} {
-		mux.HandleFunc("GET "+prefix+"/user", s.handleGrokJSON(map[string]any{"userId": "mock-user", "email": "mock@test.invalid"}))
+		mux.HandleFunc("GET "+prefix+"/user", user)
 		mux.HandleFunc("GET "+prefix+"/settings", settings)
-		mux.HandleFunc("GET "+prefix+"/privacy/coding-data-retention", s.handleGrokJSON(map[string]any{"opted_out": false}))
+		mux.HandleFunc("GET "+prefix+"/privacy/coding-data-retention", privacy)
 	}
 	mux.HandleFunc("GET /api-key", stub)
 	mux.HandleFunc("GET /billing", stub)
@@ -68,11 +73,9 @@ func New() *MockServer {
 	mux.HandleFunc("DELETE /log", s.handleClearLog)
 	mux.HandleFunc("POST /response", s.handleSetResponse)
 
-	// Catch-all: return 200 for any unhandled path (prevents 404 crashes)
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		s.record(r, body)
-		writeJSON(w, map[string]any{"ok": true})
+	// Catch-all: return 200 for any unhandled path
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
 	})
 
 	s.srv = &http.Server{Handler: mux}
@@ -87,17 +90,13 @@ func (s *MockServer) SetResponse(text string) {
 	s.response = text
 }
 
-func (s *MockServer) SetToolCallMode(on bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.toolCallMode = on
-}
-
-func (s *MockServer) SetToolCall(name, args string) {
+func (s *MockServer) PrepareToolCall(name, args, path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.toolName = name
 	s.toolArgs = args
+	s.toolCallPath = path
+	s.toolCallMode = true
 }
 
 func (s *MockServer) LogCount() int {
@@ -150,13 +149,7 @@ func (s *MockServer) getToolCall() (string, string) {
 	if s.toolName != "" {
 		return s.toolName, s.toolArgs
 	}
-	return "Read", `{"file_path":"README.md"}`
-}
-
-func (s *MockServer) SetToolCallPath(path string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.toolCallPath = path
+	return DefaultToolName, DefaultToolArgs
 }
 
 func (s *MockServer) shouldToolCall(hasTools bool, requestPath string) bool {
@@ -175,21 +168,22 @@ func (s *MockServer) shouldToolCall(hasTools bool, requestPath string) bool {
 	return false
 }
 
-func (s *MockServer) record(r *http.Request, body []byte) {
+// parseRequest reads the body, records the request, and returns the parsed fields.
+func (s *MockServer) parseRequest(r *http.Request) (llmRequest, []byte) {
+	body, _ := io.ReadAll(r.Body)
+	var req llmRequest
+	json.Unmarshal(body, &req)
+	s.record(r, body, req.Model)
+	return req, body
+}
+
+func (s *MockServer) record(r *http.Request, body []byte, model string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	headers := make(map[string]string)
 	for k, v := range r.Header {
 		headers[strings.ToLower(k)] = strings.Join(v, ", ")
-	}
-
-	var model string
-	var parsed struct {
-		Model string `json:"model"`
-	}
-	if json.Unmarshal(body, &parsed) == nil {
-		model = parsed.Model
 	}
 
 	s.log = append(s.log, LogEntry{
@@ -239,15 +233,14 @@ func (s *MockServer) handleSetResponse(w http.ResponseWriter, r *http.Request) {
 
 func (s *MockServer) handleGrokJSON(data any) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		s.record(r, nil)
+		s.record(r, nil, "")
 		writeJSON(w, data)
 	}
 }
 
 func (s *MockServer) handleGrokRecord(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
-	s.record(r, body)
-	w.WriteHeader(200)
+	s.record(r, body, "")
 	writeJSON(w, map[string]any{"ok": true})
 }
 
@@ -275,16 +268,6 @@ func streamSSEEvents(w http.ResponseWriter, events []sseEvent) {
 	f := beginSSE(w)
 	for _, evt := range events {
 		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.Type, mustJSON(evt.Data))
-		if f != nil {
-			f.Flush()
-		}
-	}
-}
-
-func streamRawSSE(w http.ResponseWriter, events []string) {
-	f := beginSSE(w)
-	for _, e := range events {
-		fmt.Fprint(w, e)
 		if f != nil {
 			f.Flush()
 		}

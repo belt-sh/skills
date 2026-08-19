@@ -2,17 +2,11 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 )
 
 func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	s.record(r, body)
-
-	var req llmRequest
-	json.Unmarshal(body, &req)
+	req, _ := s.parseRequest(r)
 	model := req.modelOrDefault()
 
 	if s.shouldToolCall(req.hasTools(), r.URL.Path) {
@@ -22,7 +16,7 @@ func (s *MockServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 	text := s.getResponse()
 	if req.Stream {
-		streamRawSSE(w, anthropicTextEvents(model, text))
+		streamSSEEvents(w, anthropicTextEvents(model, text))
 		return
 	}
 
@@ -42,30 +36,28 @@ func (s *MockServer) anthropicToolCall(w http.ResponseWriter, model string, stre
 	block := ContentBlock{Type: "tool_use", ID: "toolu_mock_1", Name: name, Input: input}
 
 	if stream {
-		streamRawSSE(w, []string{
-			antEvent("message_start", map[string]any{
-				"type": "message_start",
-				"message": AnthropicMessage{
-					ID: "mock-tc", Type: "message", Role: "assistant", Model: model,
-				},
-			}),
-			antEvent("content_block_start", map[string]any{
+		streamSSEEvents(w, []sseEvent{
+			{"message_start", map[string]any{
+				"type":    "message_start",
+				"message": AnthropicMessage{ID: "mock-tc", Type: "message", Role: "assistant", Model: model},
+			}},
+			{"content_block_start", map[string]any{
 				"type": "content_block_start", "index": 0,
 				"content_block": ContentBlock{Type: "tool_use", ID: "toolu_mock_1", Name: name},
-			}),
-			antEvent("content_block_delta", map[string]any{
+			}},
+			{"content_block_delta", map[string]any{
 				"type": "content_block_delta", "index": 0,
 				"delta": map[string]string{"type": "input_json_delta", "partial_json": args},
-			}),
-			antEvent("content_block_stop", map[string]any{
+			}},
+			{"content_block_stop", map[string]any{
 				"type": "content_block_stop", "index": 0,
-			}),
-			antEvent("message_delta", map[string]any{
+			}},
+			{"message_delta", map[string]any{
 				"type":  "message_delta",
 				"delta": map[string]string{"stop_reason": "tool_use"},
 				"usage": AntUsage{OutputTokens: 15},
-			}),
-			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+			}},
+			{"message_stop", map[string]any{"type": "message_stop"}},
 		})
 		return
 	}
@@ -78,34 +70,28 @@ func (s *MockServer) anthropicToolCall(w http.ResponseWriter, model string, stre
 	})
 }
 
-func anthropicTextEvents(model, text string) []string {
-	return []string{
-		antEvent("message_start", map[string]any{
-			"type": "message_start",
-			"message": AnthropicMessage{
-				ID: "mock-1", Type: "message", Role: "assistant", Model: model,
-			},
-		}),
-		antEvent("content_block_start", map[string]any{
+func anthropicTextEvents(model, text string) []sseEvent {
+	return []sseEvent{
+		{"message_start", map[string]any{
+			"type":    "message_start",
+			"message": AnthropicMessage{ID: "mock-1", Type: "message", Role: "assistant", Model: model},
+		}},
+		{"content_block_start", map[string]any{
 			"type": "content_block_start", "index": 0,
 			"content_block": ContentBlock{Type: "text"},
-		}),
-		antEvent("content_block_delta", map[string]any{
+		}},
+		{"content_block_delta", map[string]any{
 			"type": "content_block_delta", "index": 0,
 			"delta": map[string]string{"type": "text_delta", "text": text},
-		}),
-		antEvent("content_block_stop", map[string]any{
+		}},
+		{"content_block_stop", map[string]any{
 			"type": "content_block_stop", "index": 0,
-		}),
-		antEvent("message_delta", map[string]any{
+		}},
+		{"message_delta", map[string]any{
 			"type":  "message_delta",
 			"delta": map[string]string{"stop_reason": "end_turn"},
 			"usage": AntUsage{OutputTokens: 5},
-		}),
-		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+		}},
+		{"message_stop", map[string]any{"type": "message_stop"}},
 	}
-}
-
-func antEvent(event string, data any) string {
-	return fmt.Sprintf("event: %s\ndata: %s\n\n", event, mustJSON(data))
 }

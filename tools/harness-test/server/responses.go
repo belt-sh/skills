@@ -1,8 +1,6 @@
 package server
 
 import (
-	"encoding/json"
-	"io"
 	"net/http"
 	"time"
 )
@@ -10,17 +8,13 @@ import (
 func newResponse(id, status string, output []ResponseItem, usage *Usage) ResponseObject {
 	ts := time.Now().Unix()
 	return ResponseObject{
-		ID: id, Object: "response", Created: ts, CreatedAt: ts,
+		ID: id, Object: "response", Ts: ts, TsAlt: ts,
 		Status: status, Output: output, Usage: usage,
 	}
 }
 
 func (s *MockServer) handleResponses(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	s.record(r, body)
-
-	var req llmRequest
-	json.Unmarshal(body, &req)
+	req, _ := s.parseRequest(r)
 
 	if s.shouldToolCall(req.hasTools(), r.URL.Path) {
 		s.responsesToolCall(w)

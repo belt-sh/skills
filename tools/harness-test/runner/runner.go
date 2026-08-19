@@ -99,9 +99,7 @@ func (r *Runner) Run() Result {
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
 		if r.harness.HooksInHeadless {
 			if r.server != nil && hasToolHooks {
-				r.server.SetToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs)
-				r.server.SetToolCallPath(r.harness.ToolCallPath)
-				r.server.SetToolCallMode(true)
+				r.server.PrepareToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs, r.harness.ToolCallPath)
 			}
 			r.runHeadless()
 			r.checkHookEvents("headless")
@@ -113,9 +111,7 @@ func (r *Runner) Run() Result {
 		os.Remove("/tmp/belt-hook-events.log")
 		r.server.ClearLog()
 		if r.server != nil && hasToolHooks {
-			r.server.SetToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs)
-			r.server.SetToolCallPath(r.harness.ToolCallPath)
-			r.server.SetToolCallMode(true)
+			r.server.PrepareToolCall(r.harness.ToolCallName, r.harness.ToolCallArgs, r.harness.ToolCallPath)
 		}
 		r.runInteractive()
 		if r.harness.NeedsAuthForInteractive {
@@ -593,7 +589,7 @@ func (r *Runner) buildNestedHooksJSON(logPath string) string {
 		if e.Tag == "PRE_TOOL" || e.Tag == "POST_TOOL" {
 			matcher := r.harness.ToolCallName
 			if matcher == "" {
-				matcher = "Read"
+				matcher = server.DefaultToolName
 			}
 			parts = append(parts, fmt.Sprintf(`"%s":[{"matcher":"%s","hooks":[%s]}]`, e.Event, matcher, hook))
 		} else {

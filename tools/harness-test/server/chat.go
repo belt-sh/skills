@@ -1,9 +1,7 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 )
@@ -16,11 +14,7 @@ func newChat(id, object, model string, choices []ChatChoice, usage *Usage) ChatC
 }
 
 func (s *MockServer) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	s.record(r, body)
-
-	var req llmRequest
-	json.Unmarshal(body, &req)
+	req, _ := s.parseRequest(r)
 	model := req.modelOrDefault()
 
 	if s.shouldToolCall(req.hasTools(), r.URL.Path) {
