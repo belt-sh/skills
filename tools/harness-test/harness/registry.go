@@ -137,6 +137,7 @@ var All = map[string]Harness{
 		EnvVars: map[string]string{
 			"COPILOT_PROVIDER_BASE_URL": "{{.BaseURL}}",
 			"COPILOT_MODEL":            "{{.Model}}",
+			"COPILOT_ALLOW_ALL":        "true",
 		},
 		APIKeyEnvVar: "COPILOT_PROVIDER_API_KEY",
 		DefaultModel: "gpt-4o-mini",
@@ -433,7 +434,7 @@ var All = map[string]Harness{
 // Cursor / Windsurf / Cline / Roo — IDE extensions only, no standalone CLI.
 //   Cursor has JSONFlat hook format but runs inside VS Code.
 //
-// Remaining skip investigations (4 skips across 3 harnesses, 246/4):
+// Remaining skip investigations (3 skips across 2 harnesses, 247/3):
 //
 // Codex PreCompact H (1 skip): /compact is TUI-only slash command
 //   (slash_dispatch.rs). codex exec resume --last exists but treats
@@ -445,13 +446,7 @@ var All = map[string]Harness{
 //   via SendLine but doesn't trigger PreCompact hooks. Context may be too
 //   short for compaction threshold.
 //
-// Copilot interactive prompt (1 skip, I only): Not Ink — fully custom
-//   React terminal renderer (S6 class). PTY SendLine: ICRNL race
-//   converts \r→\n before raw mode set (submit only triggers on \r).
-//   Paste coalescing (pSt function) + React batching means submit fires
-//   with empty/stale buffer. -i flag: fire-and-forget async useEffect,
-//   hook dispatch runs but bash command hasn't completed when process
-//   exits. sessionEnd fires (later in lifecycle, after hooks loaded).
+// Copilot: previously skipped Prompt I (1 skip → 0). See "Fixed (session 2)".
 //
 // Fixed (session 1):
 //   Codex PreToolUse + PostToolUse (3 skips → 0): Hook matcher mismatch.
@@ -477,6 +472,14 @@ var All = map[string]Harness{
 //     claude-haiku (tools=0, planning) then claude-opus (tools=18, agent).
 //     hasTools check correctly skips planning request, fires tool call on
 //     agent request.
+//   Copilot interactive Prompt (1 skip → 0): Not a race condition after
+//     all. The -i useEffect gates on VI (hooks ready). The real issue:
+//     repo hooks at .copilot/hooks/ require folder trust ($a===1). Without
+//     trust, hooks are skipped (VI set true without loading). Fix:
+//     COPILOT_ALLOW_ALL=true bypasses folder trust, loads hooks eagerly.
+//     User hooks (~/.config/copilot/hooks/) load eagerly regardless, but
+//     repo hooks don't. Headless --prompt works because it awaits
+//     loadDeferredRepoHooks synchronously before send().
 //   Codex interactive PreCompact (1 skip → 0): Three combined fixes.
 //     (1) SlowInput: crossterm can't handle burst SendLine post-startup,
 //     needs char-by-char input (5ms delay). (2) OnboardingDismiss for

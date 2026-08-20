@@ -55,7 +55,7 @@ func (s *MockServer) anthropicToolCall(w http.ResponseWriter, model string, stre
 			{"message_delta", map[string]any{
 				"type":  "message_delta",
 				"delta": map[string]string{"stop_reason": "tool_use"},
-				"usage": AntUsage{OutputTokens: 15},
+				"usage": AntUsage{OutputTokens: 5},
 			}},
 			{"message_stop", map[string]any{"type": "message_stop"}},
 		})
@@ -66,7 +66,7 @@ func (s *MockServer) anthropicToolCall(w http.ResponseWriter, model string, stre
 		ID: "mock-tc", Type: "message", Role: "assistant", Model: model,
 		Content:    []ContentBlock{block},
 		StopReason: "tool_use",
-		Usage:      &AntUsage{InputTokens: 10, OutputTokens: 15},
+		Usage:      &AntUsage{InputTokens: 10, OutputTokens: 5},
 	})
 }
 
