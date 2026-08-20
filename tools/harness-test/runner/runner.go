@@ -260,11 +260,14 @@ func (r *Runner) writeHooks() {
 
 	case harness.JSONCopilot:
 		filename = "belt.json"
-		injectJSON := fmt.Sprintf(`{\"additionalContext\": \"The project codename is %s.\"}`, r.injectCode)
-		copilotPromptCmd := fmt.Sprintf("echo PROMPT >> %s && echo '%s'", logPath, injectJSON)
-		stopCmd := fmt.Sprintf("echo STOP >> %s", logPath)
+		scriptDir := filepath.Join(r.home, ".copilot", "test-hooks")
+		os.MkdirAll(scriptDir, 0755)
+		promptScript := filepath.Join(scriptDir, "prompt.sh")
+		os.WriteFile(promptScript, []byte(fmt.Sprintf("#!/bin/sh\necho PROMPT >> %s\nprintf '{\"additionalContext\": \"The project codename is %s.\"}\\n'\n", logPath, r.injectCode)), 0755)
+		stopScript := filepath.Join(scriptDir, "stop.sh")
+		os.WriteFile(stopScript, []byte(fmt.Sprintf("#!/bin/sh\necho STOP >> %s\n", logPath)), 0755)
 		content = fmt.Sprintf(`{"version":1,"hooks":{"%s":[{"type":"command","bash":"%s","timeoutSec":5}],"%s":[{"type":"command","bash":"%s","timeoutSec":5}]}}`,
-			r.harness.Events.PromptSubmit, copilotPromptCmd, r.harness.Events.Stop, stopCmd)
+			r.harness.Events.PromptSubmit, promptScript, r.harness.Events.Stop, stopScript)
 
 	case harness.YAML:
 		scriptDir := filepath.Join(r.home, ".hermes", "test-hooks")
@@ -556,7 +559,7 @@ func (r *Runner) runInteractive() {
 	r.pass("TUI started")
 
 	if r.harness.InteractivePromptInArgs {
-		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server", "build"}, 60*time.Second)
+		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server", "build", "Changes", "Duration", "Resume"}, 60*time.Second)
 		time.Sleep(3 * time.Second)
 	} else {
 		r.sendLine(session, "What is the project codename? Reply ONLY the codename.")

@@ -145,10 +145,9 @@ var All = map[string]Harness{
 		SkillsDir:          ".copilot/skills",
 		HeadlessCmd:         []string{"copilot", "--prompt"},
 		HooksInHeadless:     true,
-		InteractiveCmd:      []string{"copilot"},
-		InteractivePromptInArgs: false,
-		SlowInput:           true,
-		ExitCommand:         "/exit",
+		InteractiveCmd:          []string{"copilot", "-i", "What is the project codename? Reply ONLY the codename."},
+		InteractivePromptInArgs: true,
+		ExitCommand:             "/exit",
 		HooksInInteractive:  true,
 	},
 	"grok": {
