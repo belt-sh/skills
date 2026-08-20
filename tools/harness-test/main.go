@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,18 +24,16 @@ func main() {
 
 	if *listFlag {
 		fmt.Println("Available harnesses:")
-		fmt.Printf("  %-12s %-10s %-8s %-10s %s\n", "NAME", "BINARY", "API", "HOOKS", "INJECT")
-		for name, h := range harness.All {
-			inject := "✓"
-			if !h.CanInject {
-				inject = "✗"
-			}
-			headless := "✓"
-			if !h.HooksInHeadless {
-				headless = "✗"
-			}
-			fmt.Printf("  %-12s %-10s %-8s %-10s %s (headless hooks: %s)\n",
-				name, h.Binary, apiName(h.APIFormat), hookName(h.HookFormat), inject, headless)
+		fmt.Printf("  %-12s %-10s %-8s %-10s\n", "NAME", "BINARY", "API", "HOOKS")
+		names := make([]string, 0, len(harness.All))
+		for name := range harness.All {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			h := harness.All[name]
+			fmt.Printf("  %-12s %-10s %-8s %-10s\n",
+				name, h.Binary, apiName(h.APIFormat), hookName(h.HookFormat))
 		}
 		return
 	}
@@ -76,6 +75,7 @@ func main() {
 		for name := range harness.All {
 			targets = append(targets, name)
 		}
+		sort.Strings(targets)
 	} else {
 		for _, name := range strings.Split(*harnessName, ",") {
 			name = strings.TrimSpace(name)

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -43,6 +44,7 @@ type Runner struct {
 	tokenHash16  string
 	sessionID    string
 	startTime    time.Time
+	savedEnv     []string
 	mode         Mode
 	failed       bool
 	result       Result
@@ -52,15 +54,12 @@ type Runner struct {
 var originalHome = os.Getenv("HOME")
 
 func New(h harness.Harness, srv *server.MockServer, baseURL string) *Runner {
-	input := fmt.Sprintf(`{"oauthHost":"https://auth.kimi.com","baseUrl":"%s/coding/v1"}`, baseURL)
-	hash := sha256.Sum256([]byte(input))
 	return &Runner{
-		harness:     h,
-		server:      srv,
-		baseURL:     baseURL,
-		tokenHash16: hex.EncodeToString(hash[:])[:16],
-		mode:        ModeBoth,
-		result:      Result{Harness: h.Name},
+		harness: h,
+		server:  srv,
+		baseURL: baseURL,
+		mode:    ModeBoth,
+		result:  Result{Harness: h.Name},
 	}
 }
 
@@ -93,6 +92,7 @@ func (r *Runner) skip(msg string) {
 
 func (r *Runner) Run() Result {
 	r.startTime = time.Now()
+	r.savedEnv = os.Environ()
 	fmt.Printf("=== %s ===\n", r.harness.Name)
 
 	r.setupHome()
@@ -105,13 +105,9 @@ func (r *Runner) Run() Result {
 	r.writeHooks()
 	r.setupSkills()
 
-	hasToolHooks := r.harness.Events.PreToolUse != "" || r.harness.Events.PostToolUse != ""
-
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
 		if r.harness.HooksInHeadless {
-			if r.server != nil && hasToolHooks {
-				r.server.PrepareToolCall(r.harness.ToolCallName, r.expand(r.harness.ToolCallArgs), r.harness.ToolCallPath, r.harness.ForceToolCall)
-			}
+			r.prepareToolCall()
 			r.runHeadless()
 			r.checkHookEvents("headless")
 		} else {
@@ -121,24 +117,30 @@ func (r *Runner) Run() Result {
 	if r.mode == ModeBoth || r.mode == ModeInteractive {
 		os.Remove("/tmp/belt-hook-events.log")
 		r.server.ClearLog()
-		if r.server != nil && hasToolHooks {
-			r.server.PrepareToolCall(r.harness.ToolCallName, r.expand(r.harness.ToolCallArgs), r.harness.ToolCallPath, r.harness.ForceToolCall)
-		}
+		r.prepareToolCall()
 		r.runInteractive()
-		if r.harness.NeedsAuthForInteractive {
-			r.skip("interactive hooks: requires OAuth (headless covers hook verification)")
-		} else {
-			r.checkHookEvents("interactive")
-		}
+		r.checkHookEvents("interactive")
 	}
 
 	return r.finish()
+}
+
+func (r *Runner) prepareToolCall() {
+	hasToolHooks := r.harness.Events.PreToolUse != "" || r.harness.Events.PostToolUse != ""
+	if r.server != nil && hasToolHooks {
+		r.server.PrepareToolCall(r.harness.ToolCallName, r.expand(r.harness.ToolCallArgs), r.harness.ToolCallPath)
+	}
 }
 
 func (r *Runner) finish() Result {
 	r.result.Duration = time.Since(r.startTime)
 	fmt.Printf("\n=== %s: %d passed, %d failed, %d skipped (%s) ===\n\n",
 		r.harness.Name, r.result.Passed, r.result.Failed, r.result.Skipped, r.result.Duration.Round(time.Second))
+	os.Clearenv()
+	for _, e := range r.savedEnv {
+		k, v, _ := strings.Cut(e, "=")
+		os.Setenv(k, v)
+	}
 	return r.result
 }
 
@@ -195,8 +197,13 @@ func (r *Runner) checkBinary() {
 
 func (r *Runner) setupEndpoint() {
 	fmt.Println("[phase 2] endpoint")
-	for envVar, tmpl := range r.harness.EnvVars {
-		val := r.expand(tmpl)
+	keys := make([]string, 0, len(r.harness.EnvVars))
+	for k := range r.harness.EnvVars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, envVar := range keys {
+		val := r.expand(r.harness.EnvVars[envVar])
 		os.Setenv(envVar, val)
 		r.pass(envVar + "=" + val)
 	}
@@ -273,7 +280,6 @@ func (r *Runner) writeHooks() {
 			os.WriteFile(script, []byte(body), 0755)
 			yamlHooks += fmt.Sprintf("  %s:\n    - command: %s\n      timeout: 5\n", e.Event, script)
 		}
-		// Append hooks to existing config.yaml (model config comes from ConfigFiles)
 		cfgPath := filepath.Join(r.home, r.harness.HookConfigDir, "config.yaml")
 		existing, _ := os.ReadFile(cfgPath)
 		existingStr := strings.Replace(string(existing), "hooks: {}", "", 1)
@@ -310,14 +316,7 @@ func (r *Runner) writeHooks() {
 				cmd += fmt.Sprintf(" && echo 'The project codename is %s.'", r.injectCode)
 			}
 			if e.Tag == "PRE_TOOL" || e.Tag == "POST_TOOL" {
-				matcher := r.harness.HookToolMatcher
-				if matcher == "" {
-					matcher = r.harness.ToolCallName
-				}
-				if matcher == "" {
-					matcher = server.DefaultToolName
-				}
-				tomlHooks += fmt.Sprintf("\n[[hooks]]\nevent = \"%s\"\nmatcher = \"%s\"\ncommand = \"%s\"\ntimeout = 10\n", e.Event, matcher, cmd)
+				tomlHooks += fmt.Sprintf("\n[[hooks]]\nevent = \"%s\"\nmatcher = \"%s\"\ncommand = \"%s\"\ntimeout = 10\n", e.Event, r.toolMatcher(), cmd)
 			} else {
 				tomlHooks += fmt.Sprintf("\n[[hooks]]\nevent = \"%s\"\ncommand = \"%s\"\ntimeout = 10\n", e.Event, cmd)
 			}
@@ -394,6 +393,13 @@ func (r *Runner) ensureGitRepo() string {
 	return r.repoDir
 }
 
+func (r *Runner) workDir() string {
+	if r.harness.NeedsGitRepo {
+		return r.ensureGitRepo()
+	}
+	return r.home
+}
+
 func (r *Runner) runHeadless() {
 	if len(r.harness.HeadlessCmd) == 0 {
 		r.skip("no headless command configured")
@@ -402,11 +408,7 @@ func (r *Runner) runHeadless() {
 
 	fmt.Println("[phase 5] headless prompt")
 
-	dir := r.home
-	if r.harness.NeedsGitRepo {
-		dir = r.ensureGitRepo()
-	}
-
+	dir := r.workDir()
 	prompt := "What is the project codename? Reply ONLY the codename."
 
 	var args []string
@@ -446,14 +448,17 @@ func (r *Runner) runHeadless() {
 	} else {
 		r.fail("headless produced no output")
 	}
-	var parsed struct {
-		SessionID string `json:"session_id"`
-	}
-	if json.Unmarshal(out, &parsed) == nil && parsed.SessionID != "" {
-		r.sessionID = parsed.SessionID
-	}
-	if r.sessionID == "" {
-		r.sessionID = r.findLatestSessionID(dir)
+
+	if len(r.harness.PostHeadlessCmd) > 0 {
+		var parsed struct {
+			SessionID string `json:"session_id"`
+		}
+		if json.Unmarshal(out, &parsed) == nil && parsed.SessionID != "" {
+			r.sessionID = parsed.SessionID
+		}
+		if r.sessionID == "" {
+			r.sessionID = r.findLatestSessionID(dir)
+		}
 	}
 
 	if r.harness.Events.Stop != "" {
@@ -470,6 +475,7 @@ func (r *Runner) runPostHeadless(dir string, rawArgs []string) {
 	for _, a := range rawArgs {
 		expanded := r.expand(a)
 		if expanded == "" {
+			r.skip("post-headless skipped (missing template variable)")
 			return
 		}
 		args = append(args, expanded)
@@ -488,6 +494,14 @@ func (r *Runner) runPostHeadless(dir string, rawArgs []string) {
 	time.Sleep(2 * time.Second)
 }
 
+func (r *Runner) sendLine(session *PTYSession, text string) {
+	if r.harness.SlowInput {
+		session.SendLineDelayed(text, 5*time.Millisecond)
+	} else {
+		session.SendLine(text)
+	}
+}
+
 func (r *Runner) runInteractive() {
 	if len(r.harness.InteractiveCmd) == 0 || !r.harness.HooksInInteractive {
 		return
@@ -495,10 +509,7 @@ func (r *Runner) runInteractive() {
 
 	fmt.Println("[phase 6] interactive (PTY) mode")
 
-	dir := r.home
-	if r.harness.NeedsGitRepo {
-		dir = r.ensureGitRepo()
-	}
+	dir := r.workDir()
 
 	var iargs []string
 	iargs = append(iargs, r.harness.InteractiveCmd[1:]...)
@@ -547,40 +558,23 @@ func (r *Runner) runInteractive() {
 	if r.harness.InteractivePromptInArgs {
 		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server", "build"}, 60*time.Second)
 		time.Sleep(3 * time.Second)
-	} else if r.harness.SlowInput {
-		session.SendLineDelayed("What is the project codename? Reply ONLY the codename.", 5*time.Millisecond)
-		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server"}, 30*time.Second)
-		time.Sleep(3 * time.Second)
 	} else {
-		session.SendLine("What is the project codename? Reply ONLY the codename.")
+		r.sendLine(session, "What is the project codename? Reply ONLY the codename.")
 		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server"}, 30*time.Second)
 		time.Sleep(3 * time.Second)
 	}
 	if r.harness.CompactCommand != "" {
 		if !r.harness.InteractivePromptInArgs {
-			if r.harness.SlowInput {
-				session.SendLineDelayed("Tell me more about the project.", 5*time.Millisecond)
-			} else {
-				session.SendLine("Tell me more about the project.")
-			}
+			r.sendLine(session, "Tell me more about the project.")
 			session.WaitForAny([]string{"mock", "hello", "Hello", "server"}, 30*time.Second)
 			time.Sleep(2 * time.Second)
 		}
-
-		if r.harness.SlowInput {
-			session.SendLineDelayed(r.harness.CompactCommand, 5*time.Millisecond)
-		} else {
-			session.SendLine(r.harness.CompactCommand)
-		}
+		r.sendLine(session, r.harness.CompactCommand)
 		session.WaitForAny([]string{"compact", "Compact", "compress", "Compress", "summar"}, 10*time.Second)
 		time.Sleep(1 * time.Second)
 	}
 	if !r.harness.InteractivePromptInArgs && r.harness.ExitCommand != "" {
-		if r.harness.SlowInput {
-			session.SendLineDelayed(r.harness.ExitCommand, 5*time.Millisecond)
-		} else {
-			session.SendLine(r.harness.ExitCommand)
-		}
+		r.sendLine(session, r.harness.ExitCommand)
 		time.Sleep(3 * time.Second)
 	}
 	session.SendCtrlC()
@@ -610,37 +604,16 @@ func (r *Runner) checkHookEvents(phase string) {
 		logContent = string(data)
 	}
 
-	var ptyContent string
+	ptyContent := stripANSI(r.lastOutput)
 
-	checks := []struct{ tag, label, event string }{
-		{"SESSION_START", "session-start", r.harness.Events.SessionStart},
-		{"PROMPT", "prompt", r.harness.Events.PromptSubmit},
-		{"PRE_TOOL", "pre-tool-use", r.harness.Events.PreToolUse},
-		{"POST_TOOL", "post-tool-use", r.harness.Events.PostToolUse},
-		{"STOP", "stop", r.harness.Events.Stop},
-		{"PRE_COMPACT", "pre-compact", r.harness.Events.PreCompact},
-	}
-
-	for _, c := range checks {
-		if c.event == "" {
-			continue
-		}
-		found := false
-		if logContent != "" && strings.Contains(logContent, c.tag) {
-			found = true
-		}
-		if !found && r.lastOutput != "" {
-			if ptyContent == "" {
-				ptyContent = stripANSI(r.lastOutput)
-			}
-			if strings.Contains(ptyContent, "hook: "+c.event) {
-				found = true
-			}
-		}
+	for _, e := range r.eventEntries() {
+		label := strings.ToLower(strings.ReplaceAll(e.Tag, "_", "-"))
+		found := strings.Contains(logContent, e.Tag) ||
+			strings.Contains(ptyContent, "hook: "+e.Event)
 		if found {
-			r.pass(fmt.Sprintf("%s: %s hook fired", phase, c.label))
+			r.pass(fmt.Sprintf("%s: %s hook fired", phase, label))
 		} else {
-			r.skip(fmt.Sprintf("%s: %s hook not fired", phase, c.label))
+			r.skip(fmt.Sprintf("%s: %s hook not fired", phase, label))
 		}
 	}
 
@@ -673,6 +646,16 @@ func (r *Runner) eventEntries() []eventEntry {
 	return result
 }
 
+func (r *Runner) toolMatcher() string {
+	if r.harness.HookToolMatcher != "" {
+		return r.harness.HookToolMatcher
+	}
+	if r.harness.ToolCallName != "" {
+		return r.harness.ToolCallName
+	}
+	return server.DefaultToolName
+}
+
 func (r *Runner) buildNestedHooksJSON(logPath string) string {
 	entries := r.eventEntries()
 	parts := []string{}
@@ -683,14 +666,7 @@ func (r *Runner) buildNestedHooksJSON(logPath string) string {
 		}
 		hook := fmt.Sprintf(`{"type":"command","command":"%s","timeout":5}`, cmd)
 		if e.Tag == "PRE_TOOL" || e.Tag == "POST_TOOL" {
-			matcher := r.harness.HookToolMatcher
-			if matcher == "" {
-				matcher = r.harness.ToolCallName
-			}
-			if matcher == "" {
-				matcher = server.DefaultToolName
-			}
-			parts = append(parts, fmt.Sprintf(`"%s":[{"matcher":"%s","hooks":[%s]}]`, e.Event, matcher, hook))
+			parts = append(parts, fmt.Sprintf(`"%s":[{"matcher":"%s","hooks":[%s]}]`, e.Event, r.toolMatcher(), hook))
 		} else {
 			parts = append(parts, fmt.Sprintf(`"%s":[{"hooks":[%s]}]`, e.Event, hook))
 		}
@@ -708,7 +684,14 @@ func (r *Runner) expand(tmpl string) string {
 	} else {
 		s = strings.ReplaceAll(s, "{{.RepoDir}}", filepath.Join(r.home, "test-repo"))
 	}
-	s = strings.ReplaceAll(s, "{{.TokenHash16}}", r.tokenHash16)
+	if strings.Contains(s, "{{.TokenHash16}}") {
+		if r.tokenHash16 == "" {
+			input := fmt.Sprintf(`{"oauthHost":"https://auth.kimi.com","baseUrl":"%s/coding/v1"}`, r.baseURL)
+			hash := sha256.Sum256([]byte(input))
+			r.tokenHash16 = hex.EncodeToString(hash[:])[:16]
+		}
+		s = strings.ReplaceAll(s, "{{.TokenHash16}}", r.tokenHash16)
+	}
 	s = strings.ReplaceAll(s, "{{.SessionID}}", r.sessionID)
 	return s
 }

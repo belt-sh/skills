@@ -57,7 +57,6 @@ type Harness struct {
 	ToolCallName     string // tool name in mock responses (default: "Read")
 	ToolCallArgs     string // JSON args for mock tool call (default: {"file_path":"README.md"})
 	ToolCallPath     string // only fire tool calls on requests to this path suffix
-	ForceToolCall    bool   // send tool call regardless of whether request includes tools
 	HookToolMatcher  string // hook matcher name if different from ToolCallName (e.g. codex: "Bash" matches exec_command)
 
 	// Pre-flight config files (auth, trust, provider config, permissions)
@@ -82,14 +81,10 @@ type Harness struct {
 	ExitCommand             string
 	CompactCommand          string   // slash command to trigger compaction (e.g. "/compact")
 	HooksInInteractive      bool
-	NeedsAuthForInteractive bool     // TUI requires OAuth login (can't test hooks without real auth)
 	OnboardingDismiss       []DismissAction
 
 	// Setup
 	PreserveHome bool // don't override HOME (harness needs installed plugins)
-
-	// Capabilities
-	CanInject bool
 }
 
 type DismissAction struct {

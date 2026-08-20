@@ -1,5 +1,14 @@
 package harness
 
+var standardEvents = Events{
+	SessionStart: "SessionStart",
+	PromptSubmit: "UserPromptSubmit",
+	PreToolUse:   "PreToolUse",
+	PostToolUse:  "PostToolUse",
+	Stop:         "Stop",
+	PreCompact:   "PreCompact",
+}
+
 func tsPluginHarness(name, binary, installPkg, hookDir string) Harness {
 	return Harness{
 		Name: name, Binary: binary,
@@ -29,7 +38,6 @@ func tsPluginHarness(name, binary, installPkg, hookDir string) Harness {
 		InteractiveArgs:         []string{"--auto", "-m", "{{.Model}}", "--prompt", "What is the project codename? Reply ONLY the codename."},
 		InteractivePromptInArgs: true,
 		HooksInInteractive:      true,
-		CanInject:               true,
 	}
 }
 
@@ -63,14 +71,7 @@ var All = map[string]Harness{
 			{Path: ".claude.json", Content: `{"projects":{"{{.RepoDir}}":{"hasTrustDialogAccepted":true}}}`},
 			{Path: ".claude/settings.local.json", Content: `{"theme":"dark","hasCompletedOnboarding":true}`},
 		},
-		Events: Events{
-			SessionStart: "SessionStart",
-			PromptSubmit: "UserPromptSubmit",
-			PreToolUse:   "PreToolUse",
-			PostToolUse:  "PostToolUse",
-			Stop:         "Stop",
-			PreCompact:   "PreCompact",
-		},
+		Events:             standardEvents,
 		SkillsDir:          ".claude/skills",
 		HeadlessCmd:         []string{"claude", "-p"},
 		HeadlessModelArgs:   []string{"--model", "{{.Model}}", "--dangerously-skip-permissions", "--max-turns", "2"},
@@ -87,7 +88,6 @@ var All = map[string]Harness{
 			{Pattern: "theme"}, {Pattern: "Theme"}, {Pattern: "style"},
 			{Pattern: "trust"}, {Pattern: "Trust"}, {Pattern: "onboarding"},
 		},
-		CanInject:                  true,
 	},
 	"codex": {
 		Name: "codex", Binary: "codex",
@@ -106,14 +106,7 @@ var All = map[string]Harness{
 		HookFormat:      JSONNested,
 		HookConfigDir:   ".codex",
 		HookFileName:    "hooks.json",
-		Events: Events{
-			SessionStart: "SessionStart",
-			PromptSubmit: "UserPromptSubmit",
-			PreToolUse:   "PreToolUse",
-			PostToolUse:  "PostToolUse",
-			Stop:         "Stop",
-			PreCompact:   "PreCompact",
-		},
+		Events:             standardEvents,
 		SkillsDir:          ".agents/skills",
 		HeadlessCmd:         []string{"codex", "exec"},
 		HeadlessModelArgs: append([]string{
@@ -132,7 +125,6 @@ var All = map[string]Harness{
 		ExitCommand:             "/exit",
 		CompactCommand:          "/compact",
 		HooksInInteractive:      true,
-		CanInject:                  true,
 	},
 	"copilot": {
 		Name: "copilot", Binary: "copilot",
@@ -158,7 +150,6 @@ var All = map[string]Harness{
 		SlowInput:           true,
 		ExitCommand:         "/exit",
 		HooksInInteractive:  true,
-		CanInject:           true,
 	},
 	"grok": {
 		Name: "grok", Binary: "grok",
@@ -198,7 +189,6 @@ var All = map[string]Harness{
 		ExitCommand:          "/exit",
 		CompactCommand:       "/compact",
 		HooksInInteractive:   true,
-		CanInject:            true,
 	},
 	"pi": {
 		Name: "pi", Binary: "pi",
@@ -216,7 +206,6 @@ var All = map[string]Harness{
 		InteractiveCmd:      []string{"pi"},
 		ExitCommand:         "/exit",
 		HooksInInteractive:  true,
-		CanInject:           true,
 	},
 	"hermes": {
 		Name: "hermes", Binary: "hermes",
@@ -248,7 +237,6 @@ var All = map[string]Harness{
 		InteractiveCmd:       []string{"hermes"},
 		ExitCommand:          "/exit",
 		HooksInInteractive:   true,
-		CanInject:            true,
 	},
 	"kilo": tsPluginHarness("kilo", "kilo", "@kilocode/cli", ".kilo/plugins"),
 	"kimi": {
@@ -282,7 +270,6 @@ var All = map[string]Harness{
 		ExitCommand:         "/exit",
 		HooksInInteractive:  true,
 		OnboardingDismiss: []DismissAction{{Pattern: "Don't trust", SendUp: true}},
-		CanInject:           true,
 	},
 	"goose": {
 		Name: "goose", Binary: "goose",
@@ -320,7 +307,6 @@ var All = map[string]Harness{
 		InteractiveCmd:   []string{"goose"},
 		ExitCommand:      "/exit",
 		HooksInInteractive: true,
-		CanInject:        true,
 	},
 	"gemini": {
 		Name: "gemini", Binary: "gemini",
@@ -356,7 +342,6 @@ var All = map[string]Harness{
 		ExitCommand:             "/exit",
 		CompactCommand:          "/compress",
 		HooksInInteractive:      true,
-		CanInject:           true,
 	},
 	"qwen": {
 		Name: "qwen", Binary: "qwen",
@@ -373,14 +358,7 @@ var All = map[string]Harness{
 		HookConfigDir: ".qwen",
 		HookFileName:  "settings.json",
 		HookWrapper:   `{"permissions":{"allow":["Bash(*)","Read(*)","Write(*)"]},"hooks":%s}`,
-		Events: Events{
-			SessionStart: "SessionStart",
-			PromptSubmit: "UserPromptSubmit",
-			PreToolUse:   "PreToolUse",
-			PostToolUse:  "PostToolUse",
-			Stop:         "Stop",
-			PreCompact:   "PreCompact",
-		},
+		Events:              standardEvents,
 		NeedsGitRepo:        true,
 		HeadlessCmd:         []string{"qwen", "-p"},
 		HeadlessModelArgs:   []string{"--model", "{{.Model}}", "--yolo", "--auth-type", "openai"},
@@ -393,7 +371,6 @@ var All = map[string]Harness{
 		ExitCommand:             "/exit",
 		CompactCommand:          "/compress",
 		HooksInInteractive:      true,
-		CanInject:           true,
 	},
 	"opencode": tsPluginHarness("opencode", "opencode", "opencode-ai", ".opencode/plugins"),
 	"droid": {
@@ -413,14 +390,7 @@ var All = map[string]Harness{
 		HookConfigDir:   ".factory",
 		HookFileName:    "hooks.json",
 		HookWrapper:     "%s",
-		Events: Events{
-			SessionStart: "SessionStart",
-			PromptSubmit: "UserPromptSubmit",
-			PreToolUse:   "PreToolUse",
-			PostToolUse:  "PostToolUse",
-			Stop:         "Stop",
-			PreCompact:   "PreCompact",
-		},
+		Events:          standardEvents,
 		ConfigFiles: []ConfigFile{
 			{Path: ".factory/settings.json", Content: `{"customModels":[{"model":"mock-model","displayName":"Mock","baseUrl":"{{.BaseURL}}/v1","apiKey":"mock-key","provider":"openai","maxOutputTokens":4096}]}`},
 		},
@@ -435,7 +405,6 @@ var All = map[string]Harness{
 		ExitCommand:      "/exit",
 		CompactCommand:   "/compact",
 		HooksInInteractive:    true,
-		CanInject:        true,
 	},
 }
 

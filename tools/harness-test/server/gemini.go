@@ -87,25 +87,28 @@ func (s *MockServer) handleGemini(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *MockServer) geminiStream(w http.ResponseWriter, model, text string) {
-	events := []sseEvent{
-		{"message", geminiResponse{
-			Candidates:   []geminiCandidate{{Content: geminiContent{Role: "model", Parts: []geminiPart{{Text: text}}}}},
-			ModelVersion: model,
-		}},
-		{"message", geminiResponse{
-			Candidates:    []geminiCandidate{{Content: geminiContent{Role: "model", Parts: []geminiPart{{Text: ""}}}, FinishReason: "STOP"}},
-			UsageMetadata: &geminiUsage{PromptTokenCount: 10, CandidatesTokenCount: 5, TotalTokenCount: 15},
-			ModelVersion:  model,
-		}},
-	}
+func streamDataOnly(w http.ResponseWriter, events []any) {
 	f := beginSSE(w)
-	for _, evt := range events {
-		fmt.Fprintf(w, "data: %s\n\n", mustJSON(evt.Data))
+	for _, data := range events {
+		fmt.Fprintf(w, "data: %s\n\n", mustJSON(data))
 		if f != nil {
 			f.Flush()
 		}
 	}
+}
+
+func (s *MockServer) geminiStream(w http.ResponseWriter, model, text string) {
+	streamDataOnly(w, []any{
+		geminiResponse{
+			Candidates:   []geminiCandidate{{Content: geminiContent{Role: "model", Parts: []geminiPart{{Text: text}}}}},
+			ModelVersion: model,
+		},
+		geminiResponse{
+			Candidates:    []geminiCandidate{{Content: geminiContent{Role: "model", Parts: []geminiPart{{Text: ""}}}, FinishReason: "STOP"}},
+			UsageMetadata: &geminiUsage{PromptTokenCount: 10, CandidatesTokenCount: 5, TotalTokenCount: 15},
+			ModelVersion:  model,
+		},
+	})
 }
 
 func (s *MockServer) geminiToolCall(w http.ResponseWriter, model string) {
@@ -114,23 +117,15 @@ func (s *MockServer) geminiToolCall(w http.ResponseWriter, model string) {
 	json.Unmarshal([]byte(argsJSON), &args)
 
 	fc := geminiPart{FunctionCall: &geminiFuncCall{Name: name, Args: args}}
-
-	events := []sseEvent{
-		{"message", geminiResponse{
+	streamDataOnly(w, []any{
+		geminiResponse{
 			Candidates:   []geminiCandidate{{Content: geminiContent{Role: "model", Parts: []geminiPart{fc}}}},
 			ModelVersion: model,
-		}},
-		{"message", geminiResponse{
+		},
+		geminiResponse{
 			Candidates:    []geminiCandidate{{Content: geminiContent{Role: "model", Parts: []geminiPart{fc}}, FinishReason: "STOP"}},
 			UsageMetadata: &geminiUsage{PromptTokenCount: 10, CandidatesTokenCount: 12, TotalTokenCount: 22},
 			ModelVersion:  model,
-		}},
-	}
-	f := beginSSE(w)
-	for _, evt := range events {
-		fmt.Fprintf(w, "data: %s\n\n", mustJSON(evt.Data))
-		if f != nil {
-			f.Flush()
-		}
-	}
+		},
+	})
 }
