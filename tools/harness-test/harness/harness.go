@@ -66,11 +66,12 @@ type Harness struct {
 	SkillsDir string
 
 	// Headless (-p) mode
-	HeadlessCmd     []string // command prefix
-	HeadlessModelArgs []string // model selection flags, supports {{.Model}}
-	PromptViaStdin  bool     // true = feed prompt on stdin (codex exec)
-	NeedsGitRepo    bool
-	HooksInHeadless bool
+	HeadlessCmd          []string // command prefix
+	HeadlessModelArgs    []string // model selection flags, supports {{.Model}}
+	HeadlessCompactArgs  []string // args to resume session with /compact (e.g. ["-p","--continue","--dangerously-skip-permissions"])
+	PromptViaStdin       bool     // true = feed prompt on stdin (codex exec)
+	NeedsGitRepo         bool
+	HooksInHeadless      bool
 
 	// Interactive (PTY/TUI) mode
 	InteractiveCmd          []string

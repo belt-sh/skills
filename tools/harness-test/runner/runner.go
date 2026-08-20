@@ -436,6 +436,30 @@ func (r *Runner) runHeadless() {
 	if r.harness.Events.Stop != "" {
 		time.Sleep(3 * time.Second)
 	}
+
+	if len(r.harness.HeadlessCompactArgs) > 0 && r.harness.Events.PreCompact != "" {
+		r.runHeadlessCompact(dir)
+	}
+}
+
+func (r *Runner) runHeadlessCompact(dir string) {
+	var args []string
+	for _, a := range r.harness.HeadlessCompactArgs {
+		args = append(args, r.expand(a))
+	}
+	args = append(args, "/compact")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, r.harness.HeadlessCmd[0], args...)
+	cmd.Env = os.Environ()
+	cmd.Dir = dir
+	out, _ := cmd.CombinedOutput()
+	if os.Getenv("HARNESS_DEBUG") != "" {
+		fmt.Printf("    [debug] compact output: %s\n", string(out))
+	}
+	time.Sleep(2 * time.Second)
 }
 
 func (r *Runner) runInteractive() {
