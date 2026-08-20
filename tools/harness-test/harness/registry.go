@@ -429,7 +429,7 @@ var All = map[string]Harness{
 // Cursor / Windsurf / Cline / Roo — IDE extensions only, no standalone CLI.
 //   Cursor has JSONFlat hook format but runs inside VS Code.
 //
-// Remaining skip investigations (7 skips across 3 harnesses, 242/7):
+// Remaining skip investigations (7 skips across 3 harnesses, 243/7):
 //
 // Codex interactive (2 skips, I only): TUI fires ZERO hooks despite
 //   headless exec firing all hooks with the same config. The TUI uses
