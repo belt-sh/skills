@@ -430,46 +430,58 @@ var All = map[string]Harness{
 // Cursor / Windsurf / Cline / Roo — IDE extensions only, no standalone CLI.
 //   Cursor has JSONFlat hook format but runs inside VS Code.
 //
-// Remaining skip investigations (10 skips across 5 harnesses, 239/10):
+// Remaining skip investigations (7 skips across 3 harnesses, 242/7):
 //
-// Codex PreCompact (2 skips, H+I): TUI /compact calls
-//   run_pre_compact_hooks() (codex-rs/core/src/hook_runtime.rs) but
-//   capture_step_context() fails before reaching the hook when there
-//   isn't enough conversation history. In headless, /compact is
-//   unreachable (TUI-only slash command). Auto-compaction requires
-//   context > model_context_window, impractical with mock.
-//
-// Gemini interactive tools (2 skips, I only): Interactive TUI uses
-//   gemini-3.1-flash-lite via generateContent (non-streaming) with no
-//   tool declarations. This is the planning/routing model. The full
-//   agent execution (gemini-2.5-pro via streamGenerateContent with
-//   tools) only runs in headless mode. GATEWAY auth with apiKey=""
-//   doesn't initialize the full agent loop in interactive mode.
+// Codex interactive (2 skips, I only): TUI fires ZERO hooks despite
+//   headless exec firing all hooks with the same config. The TUI uses
+//   an embedded app-server (codex-rs/tui). Startup input quarantine:
+//   discard_pending_input_before_interactive_screen() in tui.rs actively
+//   drains stdin. startup_protected_input_boundary blocks input until
+//   all startup screens resolve. InteractivePromptInArgs bypasses stdin
+//   via submit_initial_user_message_if_pending(). PreCompact: TUI
+//   /compact calls run_pre_compact_hooks() but capture_step_context()
+//   fails with insufficient history (only 1 turn, can't warmup).
 //
 // Droid interactive tools (2 skips, I only): Interactive sends
 //   tool_choice:"auto" but tools:[] (empty). --auto high doesn't change
-//   tool registration. Provider "openai" uses Responses API but tool
-//   filtering empties list in interactive mode.
+//   tool registration. Server-side filtering, not configurable from CLI.
 //
 // Droid PreCompact (2 skips, H+I): /compact exists but exec --session-id
 //   treats prompt as user message, not slash command. Session ID captured
 //   from ~/.factory/sessions/ filesystem but compact can't be triggered.
 //
-// Copilot interactive prompt (1 skip, I only): -i flag auto-submits via
-//   fire-and-forget async useEffect. Process exits before hook bash
-//   command completes. Without -i, PTY SendLine doesn't reach Ink input.
-//   Headless (--prompt) properly awaits and passes.
-//
-// Qwen interactive PreCompact (1 skip, I only): /compress in headless
-//   works via --continue. In TUI, Ink readline processes SendLine chunk
-//   synchronously but React batches state updates. \r fires submit before
-//   buffer contains /compress. SlowInput mitigates but doesn't fix.
+// Copilot interactive prompt (1 skip, I only): Not Ink — fully custom
+//   React terminal renderer (S6 class). PTY SendLine: ICRNL race
+//   converts \r→\n before raw mode set (submit only triggers on \r).
+//   Paste coalescing (pSt function) + React batching means submit fires
+//   with empty/stale buffer. -i flag: fire-and-forget async useEffect,
+//   hook dispatch runs but bash command hasn't completed when process
+//   exits. sessionEnd fires (later in lifecycle, after hooks loaded).
 //
 // Fixed this session:
-//   Codex PreToolUse + PostToolUse (3 skips): Hook matcher mismatch.
+//   Codex PreToolUse + PostToolUse (3 skips → 0): Hook matcher mismatch.
 //     exec_command exposes as "Bash" via HookToolName::bash() in
-//     hook_names.rs. Added HookToolMatcher field, set to "Bash".
-//   Gemini interactive session (2 skips): Missing selectedType:"gateway"
-//     in settings.json. Added to HookWrapper. GATEWAY auth skips all
-//     token validation. 4 hooks now pass (SessionStart, Prompt, Stop,
-//     PreCompress).
+//     codex-rs/core/src/tools/hook_names.rs. Added HookToolMatcher
+//     field to decouple API tool name from hook matcher.
+//   Gemini interactive (4 skips → 0): Two fixes. (1) selectedType:
+//     "gemini-api-key" (was "gateway") with GEMINI_API_KEY env var.
+//     GATEWAY routed through flash-lite planning model (no tools).
+//     gemini-api-key gives full agent model access. (2) -m gemini-2.5-flash
+//     skips flash-lite routing, uses streamGenerateContent with full
+//     functionDeclarations (56KB+ tool payload).
+//   Qwen interactive PreCompact (1 skip → 0): Positional prompt arg made
+//     qwen run in headless mode. Removed prompt from InteractiveArgs,
+//     now uses SendLine + SlowInput in actual TUI mode.
+//
+// TUI technology map:
+//   Ink (React): claude, grok, droid, kimi, pi, qwen, gemini, opencode, kilo
+//   Custom React renderer: copilot (S6 class, not Ink)
+//   crossterm (Rust): codex (Bun-bundled codex-rs, startup input quarantine)
+//   Ratatui (Rust): goose (crossterm works, no quarantine)
+//   prompt_toolkit (Python): hermes
+//
+// PTY input compatibility:
+//   SendLine works: claude, grok, goose, droid, kimi, pi, hermes, qwen
+//   SendLine + SlowInput: gemini (anti-paste 30ms), qwen (/compress)
+//   Prompt-in-args only: codex (startup quarantine), copilot (ICRNL race)
+//   --prompt flag: opencode, kilo (TSPlugin via --prompt flag)
