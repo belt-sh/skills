@@ -61,15 +61,6 @@ func (s *PTYSession) SendLine(text string) {
 	s.ptmx.WriteString(text + "\r")
 }
 
-func (s *PTYSession) Type(text string) {
-	for _, c := range text {
-		s.ptmx.WriteString(string(c))
-		time.Sleep(20 * time.Millisecond)
-	}
-	time.Sleep(50 * time.Millisecond)
-	s.ptmx.Write([]byte{'\r'})
-}
-
 func (s *PTYSession) SendCtrlC() {
 	s.ptmx.Write([]byte{0x03})
 }

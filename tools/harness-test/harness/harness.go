@@ -42,7 +42,7 @@ type Harness struct {
 
 	// API
 	APIFormat      APIFormat
-	EndpointEnvVars map[string]string // env vars to set to mock URL (key=var, value="{{.BaseURL}}" or literal)
+	EnvVars map[string]string // env vars to set (supports {{.BaseURL}} and literal values)
 	APIKeyEnvVar   string            // env var for API key
 	DefaultModel   string
 

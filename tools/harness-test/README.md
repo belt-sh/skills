@@ -95,7 +95,7 @@ Adding a new harness means adding an entry to `harness.All` in `registry.go`.
     Name: "myharness", Binary: "myharness",
     InstallCmd: []string{"npm", "install", "-g", "myharness"},
     APIFormat: harness.OpenAI,
-    EndpointEnvVars: map[string]string{
+    EnvVars: map[string]string{
         "MYHARNESS_BASE_URL": "{{.BaseURL}}",
     },
     APIKeyEnvVar: "MYHARNESS_API_KEY",

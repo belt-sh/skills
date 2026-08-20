@@ -32,27 +32,31 @@ const (
 )
 
 type Runner struct {
-	harness    harness.Harness
-	server     *server.MockServer
-	baseURL    string
-	home       string
-	repoDir    string
-	injectCode string
-	mode       Mode
-	failed     bool
-	result     Result
-	lastOutput string
+	harness      harness.Harness
+	server       *server.MockServer
+	baseURL      string
+	home         string
+	repoDir      string
+	injectCode   string
+	tokenHash16  string
+	mode         Mode
+	failed       bool
+	result       Result
+	lastOutput   string
 }
 
 var originalHome = os.Getenv("HOME")
 
 func New(h harness.Harness, srv *server.MockServer, baseURL string) *Runner {
+	input := fmt.Sprintf(`{"oauthHost":"https://auth.kimi.com","baseUrl":"%s/coding/v1"}`, baseURL)
+	hash := sha256.Sum256([]byte(input))
 	return &Runner{
-		harness: h,
-		server:  srv,
-		baseURL: baseURL,
-		mode:    ModeBoth,
-		result:  Result{Harness: h.Name},
+		harness:     h,
+		server:      srv,
+		baseURL:     baseURL,
+		tokenHash16: hex.EncodeToString(hash[:])[:16],
+		mode:        ModeBoth,
+		result:      Result{Harness: h.Name},
 	}
 }
 
@@ -185,7 +189,7 @@ func (r *Runner) checkBinary() {
 
 func (r *Runner) setupEndpoint() {
 	fmt.Println("[phase 2] endpoint")
-	for envVar, tmpl := range r.harness.EndpointEnvVars {
+	for envVar, tmpl := range r.harness.EnvVars {
 		val := r.expand(tmpl)
 		os.Setenv(envVar, val)
 		r.pass(envVar + "=" + val)
@@ -661,11 +665,7 @@ func (r *Runner) expand(tmpl string) string {
 	} else {
 		s = strings.ReplaceAll(s, "{{.RepoDir}}", filepath.Join(r.home, "test-repo"))
 	}
-	if strings.Contains(s, "{{.TokenHash16}}") {
-		input := fmt.Sprintf(`{"oauthHost":"https://auth.kimi.com","baseUrl":"%s/coding/v1"}`, r.baseURL)
-		h := sha256.Sum256([]byte(input))
-		s = strings.ReplaceAll(s, "{{.TokenHash16}}", hex.EncodeToString(h[:])[:16])
-	}
+	s = strings.ReplaceAll(s, "{{.TokenHash16}}", r.tokenHash16)
 	return s
 }
 

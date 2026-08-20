@@ -5,7 +5,7 @@ func tsPluginHarness(name, binary, installPkg, hookDir string) Harness {
 		Name: name, Binary: binary,
 		InstallCmd: []string{"npm", "install", "-g", installPkg},
 		APIFormat: Responses,
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"OPENAI_BASE_URL": "{{.BaseURL}}/v1",
 		},
 		APIKeyEnvVar:    "OPENAI_API_KEY",
@@ -47,7 +47,7 @@ var All = map[string]Harness{
 		Name: "claude", Binary: "claude",
 		InstallCmd: []string{"npm", "install", "-g", "@anthropic-ai/claude-code"},
 		APIFormat: Anthropic,
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"ANTHROPIC_BASE_URL":       "{{.BaseURL}}",
 			"ANTHROPIC_AUTH_TOKEN":     "mock-auth-token",
 			"CLAUDE_CODE_OAUTH_TOKEN":  "mock-oauth-token",
@@ -93,7 +93,7 @@ var All = map[string]Harness{
 			{"sh", "-c", "codex plugin add belt@belt-sh-skills 2>/dev/null || true"},
 		},
 		APIFormat: Responses,
-		EndpointEnvVars: map[string]string{},
+		EnvVars: map[string]string{},
 		APIKeyEnvVar:    "OPENAI_API_KEY",
 		DefaultModel:    "gpt-4o-mini",
 		ToolCallName:    "exec_command",
@@ -133,7 +133,7 @@ var All = map[string]Harness{
 		Name: "copilot", Binary: "copilot",
 		InstallCmd: []string{"npm", "install", "-g", "@github/copilot"},
 		APIFormat: OpenAI,
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"COPILOT_PROVIDER_BASE_URL": "{{.BaseURL}}",
 			"COPILOT_MODEL":            "{{.Model}}",
 		},
@@ -161,7 +161,7 @@ var All = map[string]Harness{
 		ToolCallName: "read_file",
 		ToolCallArgs: `{"target_file":"README.md"}`,
 		ToolCallPath: "chat/completions",
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"GROK_CLI_CHAT_PROXY_BASE_URL": "{{.BaseURL}}",
 			"GROK_XAI_API_BASE_URL":        "{{.BaseURL}}",
 			"GROK_MODELS_BASE_URL":          "{{.BaseURL}}",
@@ -197,7 +197,7 @@ var All = map[string]Harness{
 		Name: "pi", Binary: "pi",
 		InstallCmd: []string{"npm", "install", "-g", "--ignore-scripts", "@earendil-works/pi-coding-agent"},
 		APIFormat:    OpenAI,
-		EndpointEnvVars: map[string]string{},
+		EnvVars: map[string]string{},
 		APIKeyEnvVar: "OPENROUTER_API_KEY",
 		DefaultModel: "openai/gpt-4o-mini",
 		HookFormat:    TSExtension,
@@ -218,7 +218,7 @@ var All = map[string]Harness{
 		APIFormat:    OpenAI,
 		ToolCallName: "read_file",
 		ToolCallArgs: `{"path":"README.md"}`,
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"OPENROUTER_BASE_URL": "{{.BaseURL}}/v1",
 		},
 		APIKeyEnvVar: "OPENROUTER_API_KEY",
@@ -248,7 +248,7 @@ var All = map[string]Harness{
 		Name: "kimi", Binary: "kimi",
 		InstallCmd: []string{"npm", "install", "-g", "@moonshot-ai/kimi-code"},
 		APIFormat: OpenAI,
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"KIMI_CODE_BASE_URL": "{{.BaseURL}}/coding/v1",
 		},
 		APIKeyEnvVar:    "",
@@ -282,7 +282,7 @@ var All = map[string]Harness{
 		InstallCmd:     []string{"sh", "-c", "mkdir -p $HOME/.local/bin && curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/goose-x86_64-unknown-linux-gnu.tar.bz2 | tar -xj --strip-components=0 -C $HOME/.local/bin"},
 		InstallBinDirs: []string{".local/bin"},
 		APIFormat:    OpenAI,
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"GOOSE_PROVIDER":               "mock",
 			"GOOSE_MODEL":                  "{{.Model}}",
 			"GOOSE_MODE":                   "auto",
@@ -319,7 +319,7 @@ var All = map[string]Harness{
 		Name: "gemini", Binary: "gemini",
 		InstallCmd: []string{"npm", "install", "-g", "@google/gemini-cli"},
 		APIFormat: Gemini,
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"GOOGLE_GEMINI_BASE_URL":     "{{.BaseURL}}",
 			"GEMINI_CLI_TRUST_WORKSPACE": "true",
 		},
@@ -352,7 +352,7 @@ var All = map[string]Harness{
 		Name: "qwen", Binary: "qwen",
 		InstallCmd: []string{"npm", "install", "-g", "@qwen-code/qwen-code"},
 		APIFormat: OpenAI,
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"OPENAI_BASE_URL": "{{.BaseURL}}/v1",
 		},
 		APIKeyEnvVar:    "OPENAI_API_KEY",
@@ -388,7 +388,7 @@ var All = map[string]Harness{
 		Name: "droid", Binary: "droid",
 		InstallCmd: []string{"npm", "install", "-g", "droid"},
 		APIFormat: OpenAI,
-		EndpointEnvVars: map[string]string{
+		EnvVars: map[string]string{
 			"FACTORY_API_BASE_URL": "{{.BaseURL}}",
 			"FACTORY_API_KEY":      "fk-mock-key-0123456789abcdef0123",
 			"FACTORY_DISABLE_KEYRING": "1",
