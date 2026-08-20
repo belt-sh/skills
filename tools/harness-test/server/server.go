@@ -80,6 +80,19 @@ func New() *MockServer {
 		"id": "mock-org-001", "name": "Mock Org",
 	}))
 
+	// Kimi managed API stubs
+	mux.HandleFunc("GET /coding/v1/me", s.handleGrokJSON(map[string]any{
+		"id": "mock-user", "email": "mock@test.invalid",
+	}))
+	mux.HandleFunc("GET /coding/v1/models", s.handleGrokJSON(map[string]any{
+		"models": []map[string]any{
+			{"id": "mock-model", "name": "Mock Model", "max_context_size": 128000},
+		},
+	}))
+	mux.HandleFunc("GET /coding/v1/usages", s.handleGrokJSON(map[string]any{
+		"used": 0, "limit": 1000000,
+	}))
+
 	// Test utilities
 	mux.HandleFunc("GET /log", s.handleGetLog)
 	mux.HandleFunc("GET /log/count", s.handleLogCount)

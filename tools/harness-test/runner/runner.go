@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -211,7 +213,7 @@ func (r *Runner) writeConfigFiles() {
 		return
 	}
 	for _, cf := range r.harness.ConfigFiles {
-		r.writeToHome(cf.Path, r.expand(cf.Content))
+		r.writeToHome(r.expand(cf.Path), r.expand(cf.Content))
 	}
 }
 
@@ -467,12 +469,22 @@ func (r *Runner) runInteractive() {
 			out := session.Output()
 			dismissed := false
 			for _, pattern := range r.harness.OnboardingDismiss {
-				if strings.Contains(out, pattern) {
-					session.SendLine("")
-					time.Sleep(2 * time.Second)
-					dismissed = true
-					break
+				sendUp := strings.HasPrefix(pattern, "↑")
+				match := pattern
+				if sendUp {
+					match = pattern[len("↑"):]
 				}
+				if !strings.Contains(out, match) {
+					continue
+				}
+				if sendUp {
+					session.SendUp()
+					time.Sleep(200 * time.Millisecond)
+				}
+				session.SendLine("")
+				time.Sleep(2 * time.Second)
+				dismissed = true
+				break
 			}
 			if dismissed {
 				continue
@@ -624,6 +636,11 @@ func (r *Runner) expand(tmpl string) string {
 		s = strings.ReplaceAll(s, "{{.RepoDir}}", r.repoDir)
 	} else {
 		s = strings.ReplaceAll(s, "{{.RepoDir}}", filepath.Join(r.home, "test-repo"))
+	}
+	if strings.Contains(s, "{{.TokenHash16}}") {
+		input := fmt.Sprintf(`{"oauthHost":"https://auth.kimi.com","baseUrl":"%s/coding/v1"}`, r.baseURL)
+		h := sha256.Sum256([]byte(input))
+		s = strings.ReplaceAll(s, "{{.TokenHash16}}", hex.EncodeToString(h[:])[:16])
 	}
 	return s
 }
