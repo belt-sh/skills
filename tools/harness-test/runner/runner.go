@@ -517,12 +517,16 @@ func (r *Runner) runInteractive() {
 			time.Sleep(1 * time.Second)
 		}
 	} else {
-		_, _ = session.WaitForAny([]string{">", "❯", "$", "?"}, 15*time.Second)
+		_, _ = session.WaitForAny([]string{">", "❯", "$", "?", "Type your message"}, 15*time.Second)
 	}
 	r.pass("TUI started")
 
 	if r.harness.InteractivePromptInArgs {
 		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server", "build"}, 60*time.Second)
+		time.Sleep(3 * time.Second)
+	} else if r.harness.SlowInput {
+		session.SendLineDelayed("What is the project codename? Reply ONLY the codename.", 5*time.Millisecond)
+		session.WaitForAny([]string{"mock", "hello", "Hello", "codename", "server"}, 30*time.Second)
 		time.Sleep(3 * time.Second)
 	} else {
 		session.SendLine("What is the project codename? Reply ONLY the codename.")
@@ -530,12 +534,20 @@ func (r *Runner) runInteractive() {
 		time.Sleep(3 * time.Second)
 	}
 	if r.harness.CompactCommand != "" {
-		session.SendLine(r.harness.CompactCommand)
+		if r.harness.SlowInput {
+			session.SendLineDelayed(r.harness.CompactCommand, 5*time.Millisecond)
+		} else {
+			session.SendLine(r.harness.CompactCommand)
+		}
 		session.WaitForAny([]string{"compact", "Compact", "compress", "Compress"}, 10*time.Second)
 		time.Sleep(1 * time.Second)
 	}
 	if !r.harness.InteractivePromptInArgs && r.harness.ExitCommand != "" {
-		session.SendLine(r.harness.ExitCommand)
+		if r.harness.SlowInput {
+			session.SendLineDelayed(r.harness.ExitCommand, 5*time.Millisecond)
+		} else {
+			session.SendLine(r.harness.ExitCommand)
+		}
 		time.Sleep(3 * time.Second)
 	}
 	session.SendCtrlC()

@@ -77,6 +77,7 @@ type Harness struct {
 	InteractiveCmd          []string
 	InteractiveArgs         []string // extra flags for interactive mode, supports {{.Model}} etc.
 	InteractivePromptInArgs bool     // prompt is part of InteractiveArgs, don't SendLine
+	SlowInput               bool     // type characters individually (bypasses anti-paste protection)
 	ExitCommand             string
 	CompactCommand          string   // slash command to trigger compaction (e.g. "/compact")
 	HooksInInteractive      bool
