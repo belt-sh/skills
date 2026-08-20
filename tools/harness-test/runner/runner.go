@@ -441,17 +441,16 @@ func (r *Runner) runHeadless() {
 		time.Sleep(3 * time.Second)
 	}
 
-	if len(r.harness.HeadlessCompactArgs) > 0 && r.harness.Events.PreCompact != "" {
-		r.runHeadlessCompact(dir)
+	for _, step := range r.harness.PostHeadlessCmd {
+		r.runPostHeadless(dir, step)
 	}
 }
 
-func (r *Runner) runHeadlessCompact(dir string) {
+func (r *Runner) runPostHeadless(dir string, rawArgs []string) {
 	var args []string
-	for _, a := range r.harness.HeadlessCompactArgs {
+	for _, a := range rawArgs {
 		args = append(args, r.expand(a))
 	}
-	args = append(args, "/compact")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -461,7 +460,7 @@ func (r *Runner) runHeadlessCompact(dir string) {
 	cmd.Dir = dir
 	out, _ := cmd.CombinedOutput()
 	if os.Getenv("HARNESS_DEBUG") != "" {
-		fmt.Printf("    [debug] compact output: %s\n", string(out))
+		fmt.Printf("    [debug] post-headless output: %s\n", string(out))
 	}
 	time.Sleep(2 * time.Second)
 }
@@ -496,16 +495,11 @@ func (r *Runner) runInteractive() {
 		for i := 0; i < 15; i++ {
 			out := session.Output()
 			dismissed := false
-			for _, pattern := range r.harness.OnboardingDismiss {
-				sendUp := strings.HasPrefix(pattern, "↑")
-				match := pattern
-				if sendUp {
-					match = pattern[len("↑"):]
-				}
-				if !strings.Contains(out, match) {
+			for _, action := range r.harness.OnboardingDismiss {
+				if !strings.Contains(out, action.Pattern) {
 					continue
 				}
-				if sendUp {
+				if action.SendUp {
 					session.SendUp()
 					time.Sleep(200 * time.Millisecond)
 				}
@@ -537,11 +531,12 @@ func (r *Runner) runInteractive() {
 	}
 	if r.harness.CompactCommand != "" {
 		session.SendLine(r.harness.CompactCommand)
-		time.Sleep(5 * time.Second)
+		session.WaitForAny([]string{"compact", "Compact", "compress", "Compress"}, 10*time.Second)
+		time.Sleep(1 * time.Second)
 	}
 	if !r.harness.InteractivePromptInArgs && r.harness.ExitCommand != "" {
 		session.SendLine(r.harness.ExitCommand)
-		time.Sleep(5 * time.Second)
+		time.Sleep(3 * time.Second)
 	}
 	session.SendCtrlC()
 	session.Wait(5 * time.Second)

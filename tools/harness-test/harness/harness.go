@@ -68,7 +68,7 @@ type Harness struct {
 	// Headless (-p) mode
 	HeadlessCmd          []string // command prefix
 	HeadlessModelArgs    []string // model selection flags, supports {{.Model}}
-	HeadlessCompactArgs  []string // args to resume session with /compact (e.g. ["-p","--continue","--dangerously-skip-permissions"])
+	PostHeadlessCmd      [][]string // commands to run after headless (e.g. [["-p","--continue","/compact"]])
 	PromptViaStdin       bool     // true = feed prompt on stdin (codex exec)
 	NeedsGitRepo         bool
 	HooksInHeadless      bool
@@ -81,13 +81,18 @@ type Harness struct {
 	CompactCommand          string   // slash command to trigger compaction (e.g. "/compact")
 	HooksInInteractive      bool
 	NeedsAuthForInteractive bool     // TUI requires OAuth login (can't test hooks without real auth)
-	OnboardingDismiss       []string // substrings that indicate a dialog to dismiss with Enter
+	OnboardingDismiss       []DismissAction
 
 	// Setup
 	PreserveHome bool // don't override HOME (harness needs installed plugins)
 
 	// Capabilities
 	CanInject bool
+}
+
+type DismissAction struct {
+	Pattern string
+	SendUp  bool // send Up arrow before Enter (to select a different menu item)
 }
 
 // Events maps belt behaviors to harness-specific event names.

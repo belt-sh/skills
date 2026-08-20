@@ -73,7 +73,7 @@ var All = map[string]Harness{
 		SkillsDir:          ".claude/skills",
 		HeadlessCmd:         []string{"claude", "-p"},
 		HeadlessModelArgs:   []string{"--model", "{{.Model}}", "--dangerously-skip-permissions", "--max-turns", "2"},
-		HeadlessCompactArgs: []string{"-p", "--continue", "--dangerously-skip-permissions"},
+		PostHeadlessCmd: [][]string{{"-p", "--continue", "--dangerously-skip-permissions", "/compact"}},
 		NeedsGitRepo:        true,
 		HooksInHeadless:     true,
 		InteractiveCmd:          []string{"claude"},
@@ -82,7 +82,10 @@ var All = map[string]Harness{
 		ExitCommand:             "/exit",
 		CompactCommand:          "/compact",
 		HooksInInteractive:      true,
-		OnboardingDismiss:       []string{"theme", "Theme", "style", "trust", "Trust", "onboarding"},
+		OnboardingDismiss: []DismissAction{
+			{Pattern: "theme"}, {Pattern: "Theme"}, {Pattern: "style"},
+			{Pattern: "trust"}, {Pattern: "Trust"}, {Pattern: "onboarding"},
+		},
 		CanInject:                  true,
 	},
 	"codex": {
@@ -274,7 +277,7 @@ var All = map[string]Harness{
 		InteractiveCmd:      []string{"kimi"},
 		ExitCommand:         "/exit",
 		HooksInInteractive:  true,
-		OnboardingDismiss:   []string{"↑Don't trust"},
+		OnboardingDismiss: []DismissAction{{Pattern: "Don't trust", SendUp: true}},
 		CanInject:           true,
 	},
 	"goose": {
