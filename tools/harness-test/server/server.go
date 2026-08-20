@@ -54,6 +54,11 @@ func New() *MockServer {
 	mux.HandleFunc("POST /v1beta/models/", s.handleGemini)
 	mux.HandleFunc("POST /v1alpha/models/", s.handleGemini)
 
+	// Factory proxy paths (Droid TUI routes LLM calls through /api/llm/{provider}/...)
+	mux.HandleFunc("POST /api/llm/a/v1/messages", s.handleMessages)
+	mux.HandleFunc("POST /api/llm/o/v1/chat/completions", s.handleChatCompletions)
+	mux.HandleFunc("POST /api/llm/o/v1/responses", s.handleResponses)
+
 	// Harness management endpoints (Grok auth, settings, sessions)
 	stub := s.handleGrokJSON(map[string]any{})
 	settings := s.handleGrokJSON(map[string]any{"models": map[string]any{"default": "mock-model"}})

@@ -429,25 +429,20 @@ var All = map[string]Harness{
 // Cursor / Windsurf / Cline / Roo — IDE extensions only, no standalone CLI.
 //   Cursor has JSONFlat hook format but runs inside VS Code.
 //
-// Remaining skip investigations (7 skips across 3 harnesses, 243/7):
+// Remaining skip investigations (5 skips across 3 harnesses, 245/5):
 //
-// Codex interactive (2 skips, I only): TUI fires ZERO hooks despite
-//   headless exec firing all hooks with the same config. The TUI uses
-//   an embedded app-server (codex-rs/tui). Startup input quarantine:
-//   discard_pending_input_before_interactive_screen() in tui.rs actively
-//   drains stdin. startup_protected_input_boundary blocks input until
-//   all startup screens resolve. InteractivePromptInArgs bypasses stdin
-//   via submit_initial_user_message_if_pending(). PreCompact: TUI
-//   /compact calls run_pre_compact_hooks() but capture_step_context()
-//   fails with insufficient history (only 1 turn, can't warmup).
+// Codex PreCompact (2 skips, H+I): Headless: /compact is TUI-only slash
+//   command (slash_dispatch.rs). codex exec resume --last exists but treats
+//   /compact as user message, not slash command. Interactive: TUI /compact
+//   calls run_pre_compact_hooks() but doesn't fire hooks even with multiple
+//   warmup turns (tested 3 warmups, 7 server requests). capture_step_context()
+//   appears to require conditions the mock provider can't satisfy.
+//   Session files: ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl.
 //
-// Droid interactive tools (2 skips, I only): Interactive sends
-//   tool_choice:"auto" but tools:[] (empty). --auto high doesn't change
-//   tool registration. Server-side filtering, not configurable from CLI.
-//
-// Droid PreCompact (2 skips, H+I): /compact exists but exec --session-id
-//   treats prompt as user message, not slash command. Session ID captured
-//   from ~/.factory/sessions/ filesystem but compact can't be triggered.
+// Droid PreCompact (2 skips, H+I): Headless: exec --session-id treats
+//   /compact as user message, not slash command. Interactive: /compact sent
+//   via SendLine but doesn't trigger PreCompact hooks. Context may be too
+//   short for compaction threshold.
 //
 // Copilot interactive prompt (1 skip, I only): Not Ink — fully custom
 //   React terminal renderer (S6 class). PTY SendLine: ICRNL race
@@ -457,7 +452,7 @@ var All = map[string]Harness{
 //   hook dispatch runs but bash command hasn't completed when process
 //   exits. sessionEnd fires (later in lifecycle, after hooks loaded).
 //
-// Fixed this session:
+// Fixed (session 1):
 //   Codex PreToolUse + PostToolUse (3 skips → 0): Hook matcher mismatch.
 //     exec_command exposes as "Bash" via HookToolName::bash() in
 //     codex-rs/core/src/tools/hook_names.rs. Added HookToolMatcher
@@ -471,6 +466,16 @@ var All = map[string]Harness{
 //   Qwen interactive PreCompact (1 skip → 0): Positional prompt arg made
 //     qwen run in headless mode. Removed prompt from InteractiveArgs,
 //     now uses SendLine + SlowInput in actual TUI mode.
+//
+// Fixed (session 2):
+//   Droid interactive PreToolUse + PostToolUse (2 skips → 0): TUI routes
+//     LLM requests through Factory API proxy at /api/llm/a/v1/messages
+//     (Anthropic Messages format), not /v1/chat/completions. Mock server
+//     had no handler for this path — requests hit catch-all, got empty
+//     200 responses. Added Factory proxy path handlers. Droid TUI sends
+//     claude-haiku (tools=0, planning) then claude-opus (tools=18, agent).
+//     hasTools check correctly skips planning request, fires tool call on
+//     agent request.
 //
 // TUI technology map:
 //   Ink (React): claude, grok, droid, kimi, pi, qwen, gemini, opencode, kilo
