@@ -315,6 +315,7 @@ var All = map[string]Harness{
 		EnvVars: map[string]string{
 			"GOOGLE_GEMINI_BASE_URL":     "{{.BaseURL}}",
 			"GEMINI_CLI_TRUST_WORKSPACE": "true",
+			"GEMINI_API_KEY":             "mock-key",
 		},
 		APIKeyEnvVar: "",
 		DefaultModel: "gemini-2.5-flash",
@@ -323,7 +324,7 @@ var All = map[string]Harness{
 		HookFormat:    JSONNested,
 		HookConfigDir: ".gemini",
 		HookFileName:  "settings.json",
-		HookWrapper:   `{"baseUrl":"{{.BaseURL}}","security":{"auth":{"selectedType":"gateway","useExternal":true}},"hooks":%s}`,
+		HookWrapper:   `{"baseUrl":"{{.BaseURL}}","security":{"auth":{"selectedType":"gemini-api-key","useExternal":true}},"hooks":%s}`,
 		Events: Events{
 			SessionStart: "SessionStart",
 			PromptSubmit: "BeforeAgent",
@@ -336,7 +337,7 @@ var All = map[string]Harness{
 		HeadlessCmd:         []string{"gemini", "-p"},
 		HeadlessModelArgs:   []string{"--yolo"},
 		HooksInHeadless:     true,
-		InteractiveCmd:          []string{"gemini", "--yolo", "-i", "What is the project codename? Reply ONLY the codename."},
+		InteractiveCmd:          []string{"gemini", "--yolo", "-m", "gemini-2.5-flash", "-i", "What is the project codename? Reply ONLY the codename."},
 		InteractivePromptInArgs: true,
 		SlowInput:               true,
 		ExitCommand:             "/exit",
