@@ -453,3 +453,40 @@ var All = map[string]Harness{
 //
 // Cursor / Windsurf / Cline / Roo — IDE extensions only, no standalone CLI.
 //   Cursor has JSONFlat hook format but runs inside VS Code.
+//
+// Remaining skip investigations:
+//
+// Gemini interactive (4 skips): GOOGLE_GEMINI_BASE_URL forces GATEWAY auth,
+//   which requires OAuth in TUI mode. useExternal:true only bypasses headless
+//   validation. GEMINI_API_KEY alone routes to googleapis.com (not mock).
+//   Anti-paste protection (bufferFastReturn, 30ms threshold) also blocks
+//   PTY-typed Enter — would need -i flag, but API calls silently fail
+//   under GATEWAY+APIKey mismatch.
+//
+// Codex PreToolUse (2 skips): Source says hooks fire unconditionally
+//   (codex-rs/core/src/tools/registry.rs), but neither --approve-for-me
+//   nor --dangerously-bypass-approvals-and-sandbox fires PreToolUse in
+//   practice. Possibly the exec_command tool returns None from
+//   pre_tool_use_payload().
+//
+// Codex PreCompact (2 skips): /compact is a TUI slash command only
+//   (codex-rs/tui/src/chatwidget/slash_dispatch.rs). Cannot trigger via
+//   codex exec. codex resume --last can't send /compact as a prompt.
+//
+// Codex PostToolUse interactive (1 skip): Tool executes but PostToolUse
+//   doesn't fire. Likely success=false or the tool handler returns None
+//   from post_tool_use_payload.
+//
+// Droid PreCompact (2 skips): /compact exists but exec --session-id needs
+//   actual session ID (not "last"). Would need runner to capture session
+//   ID from first run's output.
+//
+// Droid interactive tools (2 skips): Provider "openai" sends tool_choice:auto
+//   but tools list is still empty in interactive mode. May be autonomy-level
+//   or tool-filtering issue, not provider type.
+//
+// Copilot interactive prompt (1 skip): -i flag starts TUI and submits prompt
+//   but session exits before hook dispatch completes (fire-and-forget async).
+//
+// Qwen interactive PreCompact (1 skip): /compress command doesn't reach
+//   ink TUI input widget via PTY SendLine.
