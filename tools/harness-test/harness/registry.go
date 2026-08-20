@@ -463,16 +463,19 @@ var All = map[string]Harness{
 //
 // Remaining skip investigations (10 skips across 5 harnesses, 239/10):
 //
-// Codex PreCompact (2 skips, H+I): /compact is TUI-only slash command
-//   (codex-rs/tui/src/chatwidget/slash_dispatch.rs). Auto-compaction fires
-//   PreCompact mid-turn when context > model_context_window, but mock
-//   conversation too short. codex exec resume --last treats prompt as
-//   user message, not slash command.
+// Codex PreCompact (2 skips, H+I): TUI /compact calls
+//   run_pre_compact_hooks() (codex-rs/core/src/hook_runtime.rs) but
+//   capture_step_context() fails before reaching the hook when there
+//   isn't enough conversation history. In headless, /compact is
+//   unreachable (TUI-only slash command). Auto-compaction requires
+//   context > model_context_window, impractical with mock.
 //
-// Gemini interactive tools (2 skips, I only): -i "prompt" auto-submit
-//   doesn't include tool declarations (tools: []). Mock server returns
-//   text-only. Headless includes tools and passes. Anti-paste
-//   (bufferFastReturn 30ms) also blocks typed prompt submission.
+// Gemini interactive tools (2 skips, I only): Interactive TUI uses
+//   gemini-3.1-flash-lite via generateContent (non-streaming) with no
+//   tool declarations. This is the planning/routing model. The full
+//   agent execution (gemini-2.5-pro via streamGenerateContent with
+//   tools) only runs in headless mode. GATEWAY auth with apiKey=""
+//   doesn't initialize the full agent loop in interactive mode.
 //
 // Droid interactive tools (2 skips, I only): Interactive sends
 //   tool_choice:"auto" but tools:[] (empty). --auto high doesn't change
