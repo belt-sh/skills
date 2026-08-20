@@ -122,9 +122,13 @@ var All = map[string]Harness{
 			"-a", "never",
 		}, codexProviderArgs...), "What is the project codename? Reply ONLY the codename."),
 		InteractivePromptInArgs: true,
+		SlowInput:               true,
 		ExitCommand:             "/exit",
 		CompactCommand:          "/compact",
 		HooksInInteractive:      true,
+		OnboardingDismiss: []DismissAction{
+			{Pattern: "Yes, continue"},
+		},
 	},
 	"copilot": {
 		Name: "copilot", Binary: "copilot",
@@ -429,14 +433,11 @@ var All = map[string]Harness{
 // Cursor / Windsurf / Cline / Roo — IDE extensions only, no standalone CLI.
 //   Cursor has JSONFlat hook format but runs inside VS Code.
 //
-// Remaining skip investigations (5 skips across 3 harnesses, 245/5):
+// Remaining skip investigations (4 skips across 3 harnesses, 246/4):
 //
-// Codex PreCompact (2 skips, H+I): Headless: /compact is TUI-only slash
-//   command (slash_dispatch.rs). codex exec resume --last exists but treats
-//   /compact as user message, not slash command. Interactive: TUI /compact
-//   calls run_pre_compact_hooks() but doesn't fire hooks even with multiple
-//   warmup turns (tested 3 warmups, 7 server requests). capture_step_context()
-//   appears to require conditions the mock provider can't satisfy.
+// Codex PreCompact H (1 skip): /compact is TUI-only slash command
+//   (slash_dispatch.rs). codex exec resume --last exists but treats
+//   /compact as user message, not slash command.
 //   Session files: ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl.
 //
 // Droid PreCompact (2 skips, H+I): Headless: exec --session-id treats
@@ -476,6 +477,12 @@ var All = map[string]Harness{
 //     claude-haiku (tools=0, planning) then claude-opus (tools=18, agent).
 //     hasTools check correctly skips planning request, fires tool call on
 //     agent request.
+//   Codex interactive PreCompact (1 skip → 0): Three combined fixes.
+//     (1) SlowInput: crossterm can't handle burst SendLine post-startup,
+//     needs char-by-char input (5ms delay). (2) OnboardingDismiss for
+//     "Yes, continue" prompt. (3) Warmup prompt before /compact — context
+//     was too short for compact without it. Regular SendLine sent /compact
+//     but it was lost/garbled; with SlowInput the TUI processes it.
 //
 // TUI technology map:
 //   Ink (React): claude, grok, droid, kimi, pi, qwen, gemini, opencode, kilo
