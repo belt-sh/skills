@@ -40,6 +40,7 @@ var codexProviderArgs = []string{
 	"-c", `model_providers.mock.base_url="{{.BaseURL}}"`,
 	"-c", `model_providers.mock.env_key="OPENAI_API_KEY"`,
 	"-c", `model_providers.mock.wire_api="responses"`,
+	"-c", `model_context_window=2048`,
 }
 
 var All = map[string]Harness{
@@ -101,6 +102,7 @@ var All = map[string]Harness{
 		DefaultModel:    "gpt-4o-mini",
 		ToolCallName:    "exec_command",
 		ToolCallArgs:    `{"cmd":"cat README.md"}`,
+		HookToolMatcher: "Bash",
 		HookFormat:      JSONNested,
 		HookConfigDir:   ".codex",
 		HookFileName:    "hooks.json",
@@ -151,8 +153,9 @@ var All = map[string]Harness{
 		SkillsDir:          ".copilot/skills",
 		HeadlessCmd:         []string{"copilot", "--prompt"},
 		HooksInHeadless:     true,
-		InteractiveCmd:      []string{"copilot", "-i", "What is the project codename? Reply ONLY the codename."},
-		InteractivePromptInArgs: true,
+		InteractiveCmd:      []string{"copilot"},
+		InteractivePromptInArgs: false,
+		SlowInput:           true,
 		ExitCommand:         "/exit",
 		HooksInInteractive:  true,
 		CanInject:           true,
@@ -334,7 +337,7 @@ var All = map[string]Harness{
 		HookFormat:    JSONNested,
 		HookConfigDir: ".gemini",
 		HookFileName:  "settings.json",
-		HookWrapper:   `{"baseUrl":"{{.BaseURL}}","security":{"auth":{"useExternal":true}},"hooks":%s}`,
+		HookWrapper:   `{"baseUrl":"{{.BaseURL}}","security":{"auth":{"selectedType":"gateway","useExternal":true}},"hooks":%s}`,
 		Events: Events{
 			SessionStart: "SessionStart",
 			PromptSubmit: "BeforeAgent",
@@ -349,7 +352,9 @@ var All = map[string]Harness{
 		HooksInHeadless:     true,
 		InteractiveCmd:          []string{"gemini", "--yolo", "-i", "What is the project codename? Reply ONLY the codename."},
 		InteractivePromptInArgs: true,
+		SlowInput:               true,
 		ExitCommand:             "/exit",
+		CompactCommand:          "/compress",
 		HooksInInteractive:      true,
 		CanInject:           true,
 	},
@@ -383,6 +388,7 @@ var All = map[string]Harness{
 		InteractiveCmd:          []string{"qwen"},
 		InteractiveArgs:         []string{"--model", "{{.Model}}", "--yolo", "--auth-type", "openai", "What is the project codename? Reply ONLY the codename."},
 		InteractivePromptInArgs: true,
+		SlowInput:               true,
 		PostHeadlessCmd:         [][]string{{"-p", "--continue", "--yolo", "--auth-type", "openai", "/compress"}},
 		ExitCommand:             "/exit",
 		CompactCommand:          "/compress",
@@ -422,9 +428,10 @@ var All = map[string]Harness{
 		NeedsGitRepo:    true,
 		HeadlessCmd:     []string{"droid", "exec"},
 		HeadlessModelArgs: []string{"--auto", "high", "-m", "{{.Model}}", "-o", "stream-jsonrpc"},
+		PostHeadlessCmd:   [][]string{{"exec", "--session-id", "{{.SessionID}}", "--auto", "high", "-m", "{{.Model}}", "/compact"}},
 		HooksInHeadless:  true,
 		InteractiveCmd:   []string{"droid"},
-		InteractiveArgs:  []string{"-m", "{{.Model}}"},
+		InteractiveArgs:  []string{"--auto", "high", "-m", "{{.Model}}"},
 		ExitCommand:      "/exit",
 		CompactCommand:   "/compact",
 		HooksInInteractive:    true,
@@ -454,39 +461,43 @@ var All = map[string]Harness{
 // Cursor / Windsurf / Cline / Roo — IDE extensions only, no standalone CLI.
 //   Cursor has JSONFlat hook format but runs inside VS Code.
 //
-// Remaining skip investigations:
+// Remaining skip investigations (10 skips across 5 harnesses, 239/10):
 //
-// Gemini interactive (4 skips): GOOGLE_GEMINI_BASE_URL forces GATEWAY auth,
-//   which requires OAuth in TUI mode. useExternal:true only bypasses headless
-//   validation. GEMINI_API_KEY alone routes to googleapis.com (not mock).
-//   Anti-paste protection (bufferFastReturn, 30ms threshold) also blocks
-//   PTY-typed Enter — would need -i flag, but API calls silently fail
-//   under GATEWAY+APIKey mismatch.
+// Codex PreCompact (2 skips, H+I): /compact is TUI-only slash command
+//   (codex-rs/tui/src/chatwidget/slash_dispatch.rs). Auto-compaction fires
+//   PreCompact mid-turn when context > model_context_window, but mock
+//   conversation too short. codex exec resume --last treats prompt as
+//   user message, not slash command.
 //
-// Codex PreToolUse (2 skips): Source says hooks fire unconditionally
-//   (codex-rs/core/src/tools/registry.rs), but neither --approve-for-me
-//   nor --dangerously-bypass-approvals-and-sandbox fires PreToolUse in
-//   practice. Possibly the exec_command tool returns None from
-//   pre_tool_use_payload().
+// Gemini interactive tools (2 skips, I only): -i "prompt" auto-submit
+//   doesn't include tool declarations (tools: []). Mock server returns
+//   text-only. Headless includes tools and passes. Anti-paste
+//   (bufferFastReturn 30ms) also blocks typed prompt submission.
 //
-// Codex PreCompact (2 skips): /compact is a TUI slash command only
-//   (codex-rs/tui/src/chatwidget/slash_dispatch.rs). Cannot trigger via
-//   codex exec. codex resume --last can't send /compact as a prompt.
+// Droid interactive tools (2 skips, I only): Interactive sends
+//   tool_choice:"auto" but tools:[] (empty). --auto high doesn't change
+//   tool registration. Provider "openai" uses Responses API but tool
+//   filtering empties list in interactive mode.
 //
-// Codex PostToolUse interactive (1 skip): Tool executes but PostToolUse
-//   doesn't fire. Likely success=false or the tool handler returns None
-//   from post_tool_use_payload.
+// Droid PreCompact (2 skips, H+I): /compact exists but exec --session-id
+//   treats prompt as user message, not slash command. Session ID captured
+//   from ~/.factory/sessions/ filesystem but compact can't be triggered.
 //
-// Droid PreCompact (2 skips): /compact exists but exec --session-id needs
-//   actual session ID (not "last"). Would need runner to capture session
-//   ID from first run's output.
+// Copilot interactive prompt (1 skip, I only): -i flag auto-submits via
+//   fire-and-forget async useEffect. Process exits before hook bash
+//   command completes. Without -i, PTY SendLine doesn't reach Ink input.
+//   Headless (--prompt) properly awaits and passes.
 //
-// Droid interactive tools (2 skips): Provider "openai" sends tool_choice:auto
-//   but tools list is still empty in interactive mode. May be autonomy-level
-//   or tool-filtering issue, not provider type.
+// Qwen interactive PreCompact (1 skip, I only): /compress in headless
+//   works via --continue. In TUI, Ink readline processes SendLine chunk
+//   synchronously but React batches state updates. \r fires submit before
+//   buffer contains /compress. SlowInput mitigates but doesn't fix.
 //
-// Copilot interactive prompt (1 skip): -i flag starts TUI and submits prompt
-//   but session exits before hook dispatch completes (fire-and-forget async).
-//
-// Qwen interactive PreCompact (1 skip): /compress command doesn't reach
-//   ink TUI input widget via PTY SendLine.
+// Fixed this session:
+//   Codex PreToolUse + PostToolUse (3 skips): Hook matcher mismatch.
+//     exec_command exposes as "Bash" via HookToolName::bash() in
+//     hook_names.rs. Added HookToolMatcher field, set to "Bash".
+//   Gemini interactive session (2 skips): Missing selectedType:"gateway"
+//     in settings.json. Added to HookWrapper. GATEWAY auth skips all
+//     token validation. 4 hooks now pass (SessionStart, Prompt, Stop,
+//     PreCompress).

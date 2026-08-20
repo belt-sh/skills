@@ -58,6 +58,7 @@ type Harness struct {
 	ToolCallArgs     string // JSON args for mock tool call (default: {"file_path":"README.md"})
 	ToolCallPath     string // only fire tool calls on requests to this path suffix
 	ForceToolCall    bool   // send tool call regardless of whether request includes tools
+	HookToolMatcher  string // hook matcher name if different from ToolCallName (e.g. codex: "Bash" matches exec_command)
 
 	// Pre-flight config files (auth, trust, provider config, permissions)
 	ConfigFiles []ConfigFile

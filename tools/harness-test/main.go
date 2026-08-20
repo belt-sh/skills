@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/belt-sh/skills/tools/harness-test/harness"
 	"github.com/belt-sh/skills/tools/harness-test/runner"
@@ -88,6 +89,7 @@ func main() {
 
 	totalPassed, totalFailed, totalSkipped := 0, 0, 0
 	var failed []string
+	var results []runner.Result
 
 	for _, name := range targets {
 		h := harness.All[name]
@@ -95,6 +97,7 @@ func main() {
 		r := runner.New(h, srv, baseURL)
 		r.SetMode(*mode)
 		result := r.Run()
+		results = append(results, result)
 		totalPassed += result.Passed
 		totalFailed += result.Failed
 		totalSkipped += result.Skipped
@@ -103,8 +106,14 @@ func main() {
 		}
 	}
 
+	var totalDuration time.Duration
 	fmt.Println("=== Summary ===")
-	fmt.Printf("total: %d passed, %d failed, %d skipped\n", totalPassed, totalFailed, totalSkipped)
+	fmt.Printf("%-12s %6s %6s %6s %8s\n", "HARNESS", "PASS", "FAIL", "SKIP", "TIME")
+	for _, r := range results {
+		totalDuration += r.Duration
+		fmt.Printf("%-12s %6d %6d %6d %8s\n", r.Harness, r.Passed, r.Failed, r.Skipped, r.Duration.Round(time.Second))
+	}
+	fmt.Printf("%-12s %6d %6d %6d %8s\n", "TOTAL", totalPassed, totalFailed, totalSkipped, totalDuration.Round(time.Second))
 	if len(failed) > 0 {
 		fmt.Printf("failures: %s\n", strings.Join(failed, ", "))
 		os.Exit(1)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,10 +18,11 @@ import (
 )
 
 type Result struct {
-	Harness string
-	Passed  int
-	Failed  int
-	Skipped int
+	Harness  string
+	Passed   int
+	Failed   int
+	Skipped  int
+	Duration time.Duration
 }
 
 type Mode int
@@ -39,6 +41,8 @@ type Runner struct {
 	repoDir      string
 	injectCode   string
 	tokenHash16  string
+	sessionID    string
+	startTime    time.Time
 	mode         Mode
 	failed       bool
 	result       Result
@@ -88,6 +92,7 @@ func (r *Runner) skip(msg string) {
 }
 
 func (r *Runner) Run() Result {
+	r.startTime = time.Now()
 	fmt.Printf("=== %s ===\n", r.harness.Name)
 
 	r.setupHome()
@@ -131,8 +136,9 @@ func (r *Runner) Run() Result {
 }
 
 func (r *Runner) finish() Result {
-	fmt.Printf("\n=== %s: %d passed, %d failed, %d skipped ===\n\n",
-		r.harness.Name, r.result.Passed, r.result.Failed, r.result.Skipped)
+	r.result.Duration = time.Since(r.startTime)
+	fmt.Printf("\n=== %s: %d passed, %d failed, %d skipped (%s) ===\n\n",
+		r.harness.Name, r.result.Passed, r.result.Failed, r.result.Skipped, r.result.Duration.Round(time.Second))
 	return r.result
 }
 
@@ -304,7 +310,10 @@ func (r *Runner) writeHooks() {
 				cmd += fmt.Sprintf(" && echo 'The project codename is %s.'", r.injectCode)
 			}
 			if e.Tag == "PRE_TOOL" || e.Tag == "POST_TOOL" {
-				matcher := r.harness.ToolCallName
+				matcher := r.harness.HookToolMatcher
+				if matcher == "" {
+					matcher = r.harness.ToolCallName
+				}
 				if matcher == "" {
 					matcher = server.DefaultToolName
 				}
@@ -437,6 +446,16 @@ func (r *Runner) runHeadless() {
 	} else {
 		r.fail("headless produced no output")
 	}
+	var parsed struct {
+		SessionID string `json:"session_id"`
+	}
+	if json.Unmarshal(out, &parsed) == nil && parsed.SessionID != "" {
+		r.sessionID = parsed.SessionID
+	}
+	if r.sessionID == "" {
+		r.sessionID = r.findLatestSessionID(dir)
+	}
+
 	if r.harness.Events.Stop != "" {
 		time.Sleep(3 * time.Second)
 	}
@@ -449,7 +468,11 @@ func (r *Runner) runHeadless() {
 func (r *Runner) runPostHeadless(dir string, rawArgs []string) {
 	var args []string
 	for _, a := range rawArgs {
-		args = append(args, r.expand(a))
+		expanded := r.expand(a)
+		if expanded == "" {
+			return
+		}
+		args = append(args, expanded)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -650,7 +673,10 @@ func (r *Runner) buildNestedHooksJSON(logPath string) string {
 		}
 		hook := fmt.Sprintf(`{"type":"command","command":"%s","timeout":5}`, cmd)
 		if e.Tag == "PRE_TOOL" || e.Tag == "POST_TOOL" {
-			matcher := r.harness.ToolCallName
+			matcher := r.harness.HookToolMatcher
+			if matcher == "" {
+				matcher = r.harness.ToolCallName
+			}
 			if matcher == "" {
 				matcher = server.DefaultToolName
 			}
@@ -673,7 +699,33 @@ func (r *Runner) expand(tmpl string) string {
 		s = strings.ReplaceAll(s, "{{.RepoDir}}", filepath.Join(r.home, "test-repo"))
 	}
 	s = strings.ReplaceAll(s, "{{.TokenHash16}}", r.tokenHash16)
+	s = strings.ReplaceAll(s, "{{.SessionID}}", r.sessionID)
 	return s
+}
+
+func (r *Runner) findLatestSessionID(cwd string) string {
+	mangled := strings.ReplaceAll(cwd, "/", "-")
+	sessDir := filepath.Join(r.home, ".factory", "sessions", mangled)
+	entries, err := os.ReadDir(sessDir)
+	if err != nil {
+		return ""
+	}
+	var newest string
+	var newestTime time.Time
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().After(newestTime) {
+			newestTime = info.ModTime()
+			newest = strings.TrimSuffix(e.Name(), ".jsonl")
+		}
+	}
+	return newest
 }
 
 var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
