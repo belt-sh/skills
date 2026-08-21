@@ -1,0 +1,13 @@
+{
+  "name": "belt",
+  "version": "1.0.0",
+  "description": "Belt — the cloud platform for AI agents. Run 250+ AI apps, manage knowledge, search and publish skills, connect MCP servers.",
+  "author": {
+    "name": "inference.sh",
+    "email": "hello@inference.sh"
+  },
+  "homepage": "https://belt.sh",
+  "repository": "https://github.com/belt-sh/skills",
+  "license": "MIT",
+  "keywords": ["belt", "skills", "knowledge", "ai", "agents"]
+}

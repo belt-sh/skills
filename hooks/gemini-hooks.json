@@ -1,0 +1,71 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${extensionPath}/bin/hook-session-start.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "BeforeAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${extensionPath}/bin/hook-user-prompt.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${extensionPath}/bin/hook-post-tool.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${extensionPath}/bin/hook-post-tool.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${extensionPath}/bin/hook-stop.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PreCompress": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${extensionPath}/bin/hook-pre-compact.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

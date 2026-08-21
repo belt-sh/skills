@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hooks": {
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "${PLUGIN_ROOT}/bin/hook-user-prompt.sh",
+        "timeoutSec": 5
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "${PLUGIN_ROOT}/bin/hook-stop.sh",
+        "timeoutSec": 60
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "belt",
+  "version": "1.0.0",
+  "description": "Belt — the cloud platform for AI agents. Run 250+ AI apps, manage knowledge, search and publish skills, connect MCP servers.",
+  "author": {
+    "name": "inference.sh"
+  },
+  "homepage": "https://belt.sh",
+  "license": "MIT",
+  "keywords": ["belt", "skills", "knowledge", "ai", "agents"],
+  "hooks": [
+    {
+      "event": "SessionStart",
+      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-session-start.sh",
+      "timeout": 60
+    },
+    {
+      "event": "UserPromptSubmit",
+      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-user-prompt.sh",
+      "timeout": 3
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "Read",
+      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-post-tool.sh",
+      "timeout": 5
+    },
+    {
+      "event": "PostToolUse",
+      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-post-tool.sh",
+      "timeout": 3
+    },
+    {
+      "event": "Stop",
+      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-stop.sh",
+      "timeout": 60
+    }
+  ],
+  "interface": {
+    "displayName": "belt",
+    "shortDescription": "inference.sh — 250+ AI apps, skills registry, cross-session memory"
+  }
+}
