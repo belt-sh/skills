@@ -434,19 +434,26 @@ var All = map[string]Harness{
 // Cursor / Windsurf / Cline / Roo — IDE extensions only, no standalone CLI.
 //   Cursor has JSONFlat hook format but runs inside VS Code.
 //
-// Remaining skip investigations (3 skips across 2 harnesses, 247/3):
+// Remaining skip investigations (3 skips across 2 harnesses, 249/3):
 //
 // Codex PreCompact H (1 skip): /compact is TUI-only slash command
 //   (slash_dispatch.rs). codex exec resume --last exists but treats
-//   /compact as user message, not slash command.
-//   Session files: ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl.
+//   /compact as user message. No auto-compact in exec mode — context
+//   managed by trimming skills/truncating, not summarizing. Tested 3x
+//   exec resume --last with model_context_window=64, no PreCompact fired.
 //
-// Droid PreCompact (2 skips, H+I): Headless: exec --session-id treats
-//   /compact as user message, not slash command. Interactive: /compact sent
-//   via SendLine but doesn't trigger PreCompact hooks. Context may be too
-//   short for compaction threshold.
+// Droid PreCompact H (1 skip): exec --session-id treats /compact as user
+//   message. Slash dispatch is TUI-only. No auto-compact trigger: tested
+//   compactionTokenLimit:100 (top-level + general nested + per-model +
+//   --settings override), high Anthropic token counts (5000+500), usage
+//   in message_start SSE — none triggered auto-compact. Custom model
+//   lacks tokenizer metadata for context tracking.
 //
-// Copilot: previously skipped Prompt I (1 skip → 0). See "Fixed (session 2)".
+// Droid PreCompact I (1 skip): /compact in TUI shows "Context Usage
+//   Failed to load" dialog — can't compute context for custom model.
+//   Auto-compact also doesn't trigger (same token tracking issue).
+//   Canonical command is /compress (alias: /compact, /handoff). The
+//   handler requires showCompactConfirmation callback with TUI dialog.
 //
 // Fixed (session 1):
 //   Codex PreToolUse + PostToolUse (3 skips → 0): Hook matcher mismatch.
