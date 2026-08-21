@@ -1,26 +1,34 @@
 # belt-sh/skills
 
-Plugin for [belt](https://belt.sh) — the cloud platform for AI agents. Works with Claude Code, Codex, Cursor, Gemini CLI, Pi, OpenCode, and Windsurf.
+Plugin for [belt](https://belt.sh) — the cloud platform for AI agents. Works with 13 coding agent CLIs.
 
 ## Install (recommended)
 
 ```bash
-belt plugin init claude     # Claude Code
-belt plugin init codex      # OpenAI Codex
-belt plugin init cursor     # Cursor
-belt plugin init gemini     # Gemini CLI
-belt plugin init pi         # Pi
-belt plugin init opencode   # OpenCode
-belt plugin init windsurf   # Windsurf
+belt plugin init <harness>
 ```
 
-Shows exactly what data is sent before installing.
+Shows exactly what data is sent before installing. Supported harnesses:
+
+`claude` · `codex` · `copilot` · `cursor` · `droid` · `gemini` · `goose` · `grok` · `hermes` · `kilo` · `kimi` · `opencode` · `pi` · `qwen`
 
 ### Alternative: native plugin install
 
-**Claude Code:** `/plugin marketplace add belt-sh/skills` → `/plugin install belt` → `/reload-plugins`
-
-**Codex:** `codex plugin marketplace add belt-sh/skills` → `codex plugin install belt` → `/hooks`
+| Harness | Command |
+|---------|---------|
+| Claude Code | `/plugin marketplace add belt-sh/skills` → `/plugin install belt` |
+| Codex | `codex plugin marketplace add belt-sh/skills` → `codex plugin add belt@belt-sh-skills` |
+| Grok | `grok skills install https://github.com/belt-sh/skills` |
+| Gemini CLI | `gemini extensions install https://github.com/belt-sh/skills` |
+| Droid | `droid plugin install belt@belt-sh-skills` |
+| Kimi | `/plugins install https://github.com/belt-sh/skills` |
+| Copilot | Copy `hooks/copilot-hooks.json` to `.copilot/hooks/belt.json` |
+| Pi | `pi install https://github.com/belt-sh/skills` |
+| Hermes | `hermes plugins install belt-sh/skills` |
+| OpenCode | Copy `hooks/opencode-plugin.ts` to `.opencode/plugins/` |
+| Kilo | Copy `hooks/kilo-plugin.ts` to `.kilo/plugins/` |
+| Qwen | Merge `hooks/qwen-hooks.json` into `.qwen/settings.json` |
+| Goose | Copy `hooks/goose-hooks.json` to `.agents/plugins/belt/hooks/hooks.json` |
 
 ## What you get
 
@@ -39,6 +47,17 @@ Shows exactly what data is sent before installing.
 **Never sent:** source code, file contents, secrets, conversation history.
 
 All hooks fail silently if belt is not installed. Skills work as plain reference without belt.
+
+## Supported hook formats
+
+| Format | Harnesses |
+|--------|-----------|
+| JSONNested | claude, codex, grok, droid, goose, qwen, gemini |
+| JSONCopilot | copilot |
+| TOML | kimi |
+| YAML | hermes |
+| TypeScript (extension) | pi |
+| TypeScript (plugin) | opencode, kilo |
 
 ## Data & security
 
