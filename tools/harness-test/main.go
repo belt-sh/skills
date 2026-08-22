@@ -18,9 +18,36 @@ func main() {
 		harnessName = flag.String("harness", "", "harness to test (or 'all')")
 		mode        = flag.String("mode", "both", "test mode: headless, interactive, or both")
 		listFlag    = flag.Bool("list", false, "list available harnesses")
+		detectFlag  = flag.Bool("detect", false, "detect installed harnesses on this system")
 		serverOnly  = flag.Bool("server", false, "run mock server only (no tests)")
 	)
 	flag.Parse()
+
+	if *detectFlag {
+		results := harness.DetectAll()
+		sort.Slice(results, func(i, j int) bool { return results[i].Name < results[j].Name })
+		fmt.Printf("%-12s %-6s %-6s %-40s %s\n", "HARNESS", "BIN", "CONF", "PATH", "VERSION")
+		for _, r := range results {
+			bin := "·"
+			if r.Installed {
+				bin = "✓"
+			}
+			conf := "·"
+			if r.Configured {
+				conf = "✓"
+			}
+			path := r.Binary
+			if path == "" {
+				path = "—"
+			}
+			ver := r.Version
+			if ver == "" {
+				ver = ""
+			}
+			fmt.Printf("%-12s %-6s %-6s %-40s %s\n", r.Name, bin, conf, path, ver)
+		}
+		return
+	}
 
 	if *listFlag {
 		fmt.Println("Available harnesses:")
