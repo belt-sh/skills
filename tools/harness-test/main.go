@@ -28,25 +28,21 @@ func main() {
 	if *detectFlag {
 		results := harness.DetectAll()
 		sort.Slice(results, func(i, j int) bool { return results[i].Name < results[j].Name })
-		fmt.Printf("%-12s %-6s %-6s %-40s %s\n", "HARNESS", "BIN", "CONF", "PATH", "VERSION")
+		fmt.Printf("%-12s %-40s %-30s %s\n", "HARNESS", "PATH", "PROBES", "VERSION")
 		for _, r := range results {
-			bin := "·"
-			if r.Installed {
-				bin = "✓"
-			}
-			conf := "·"
-			if r.Configured {
-				conf = "✓"
-			}
 			path := r.Binary
 			if path == "" {
 				path = "—"
 			}
-			ver := r.Version
-			if ver == "" {
-				ver = ""
+			probes := "·"
+			if len(r.Probes) > 0 {
+				var ps []string
+				for _, p := range r.Probes {
+					ps = append(ps, string(p))
+				}
+				probes = strings.Join(ps, ", ")
 			}
-			fmt.Printf("%-12s %-6s %-6s %-40s %s\n", r.Name, bin, conf, path, ver)
+			fmt.Printf("%-12s %-40s %-30s %s\n", r.Name, path, probes, r.Version)
 		}
 		return
 	}
@@ -60,7 +56,7 @@ func main() {
 		var targets []string
 		if *installFlag == "detected" {
 			for _, r := range harness.DetectAll() {
-				if r.Installed || r.Configured {
+				if r.Installed() || r.Configured() {
 					targets = append(targets, r.Name)
 				}
 			}
