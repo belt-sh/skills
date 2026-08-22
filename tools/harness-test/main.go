@@ -15,11 +15,13 @@ import (
 
 func main() {
 	var (
-		harnessName = flag.String("harness", "", "harness to test (or 'all')")
-		mode        = flag.String("mode", "both", "test mode: headless, interactive, or both")
-		listFlag    = flag.Bool("list", false, "list available harnesses")
-		detectFlag  = flag.Bool("detect", false, "detect installed harnesses on this system")
-		serverOnly  = flag.Bool("server", false, "run mock server only (no tests)")
+		harnessName  = flag.String("harness", "", "harness to test (or 'all')")
+		mode         = flag.String("mode", "both", "test mode: headless, interactive, or both")
+		listFlag     = flag.Bool("list", false, "list available harnesses")
+		detectFlag   = flag.Bool("detect", false, "detect installed harnesses on this system")
+		installFlag  = flag.String("install", "", "install belt hooks for a harness (name or 'detected')")
+		installScope = flag.String("scope", "user", "install scope: user or project")
+		serverOnly   = flag.Bool("server", false, "run mock server only (no tests)")
 	)
 	flag.Parse()
 
@@ -45,6 +47,48 @@ func main() {
 				ver = ""
 			}
 			fmt.Printf("%-12s %-6s %-6s %-40s %s\n", r.Name, bin, conf, path, ver)
+		}
+		return
+	}
+
+	if *installFlag != "" {
+		scope := harness.ScopeUser
+		if *installScope == "project" {
+			scope = harness.ScopeProject
+		}
+
+		var targets []string
+		if *installFlag == "detected" {
+			for _, r := range harness.DetectAll() {
+				if r.Installed || r.Configured {
+					targets = append(targets, r.Name)
+				}
+			}
+			if len(targets) == 0 {
+				fmt.Fprintln(os.Stderr, "no harnesses detected")
+				os.Exit(1)
+			}
+		} else {
+			for _, name := range strings.Split(*installFlag, ",") {
+				targets = append(targets, strings.TrimSpace(name))
+			}
+		}
+
+		sort.Strings(targets)
+		scopeName := "user"
+		if scope == harness.ScopeProject {
+			scopeName = "project"
+		}
+		fmt.Printf("Installing belt hooks (%s scope)\n\n", scopeName)
+		for _, name := range targets {
+			result := harness.Install(name, scope)
+			if result.Error != nil {
+				fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", name, result.Error)
+			} else if result.Merged {
+				fmt.Printf("  ✓ %s: merged hooks into %s\n", name, result.HooksPath)
+			} else {
+				fmt.Printf("  ✓ %s: created %s\n", name, result.HooksPath)
+			}
 		}
 		return
 	}
