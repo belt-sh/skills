@@ -17,6 +17,9 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=builder /harness-test /usr/local/bin/harness-test
 
+# belt CLI (pre-built; place at tests/belt before building)
+COPY tests/belt /usr/local/bin/belt
+
 # Non-root user (Claude/Codex refuse --dangerously-skip-permissions as root)
 RUN useradd -m -s /bin/bash testuser
 

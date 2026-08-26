@@ -65,6 +65,12 @@ Encrypted (TLS 1.2+ / AES-256) · SOC 2 · GDPR · PCI DSS · we never train on 
 
 [privacy](https://inference.sh/privacy) · [terms](https://inference.sh/terms) · [trust](https://inference.sh/trust) · [security](https://inference.sh/security)
 
+## Debug
+
+`BELT_HOOK_DEBUG=1` — logs hook events with timing to stderr (`[belt:hook] session-start done (42ms)`)
+
+Hooks also log to `~/.belt/hooks.log` (always, no env var needed).
+
 ## Disable
 
 Per project: `.beltsh/config.json` → `{"hooks_disabled": true}`

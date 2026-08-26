@@ -17,6 +17,7 @@ func main() {
 	var (
 		harnessName  = flag.String("harness", "", "harness to test (or 'all')")
 		mode         = flag.String("mode", "both", "test mode: headless, interactive, or both")
+		hooks        = flag.String("hooks", "mock", "hook source: mock (test scripts) or belt (real belt hooks)")
 		listFlag     = flag.Bool("list", false, "list available harnesses")
 		detectFlag   = flag.Bool("detect", false, "detect installed harnesses on this system")
 		installFlag  = flag.String("install", "", "install belt hooks for a harness (name or 'detected')")
@@ -163,6 +164,9 @@ func main() {
 		srv.ClearLog()
 		r := runner.New(h, srv, baseURL)
 		r.SetMode(*mode)
+		if *hooks == "belt" {
+			r.SetHookSource(runner.HooksBelt)
+		}
 		result := r.Run()
 		results = append(results, result)
 		totalPassed += result.Passed

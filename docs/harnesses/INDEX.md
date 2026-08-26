@@ -5,37 +5,58 @@
 > Hook configs for all harnesses are in `hooks/` at the repo root.
 > Per-harness docs below are from source code reading + Docker testing.
 
-## Test status (249/3 — 99.2%)
+## Test status
 
-All tests run in Docker containers via `harness-test --harness all`. The Go binary
-installs the CLI, starts a mock inference server, configures hooks, runs the harness
-in headless and interactive modes, and verifies hooks fire and API requests arrive.
+Two test modes verify every harness in Docker containers:
 
-| Harness | Binary | API | Hook Format | Events | H | I | Pass | Skip | Install |
+### Mock hooks (249/3 — 99.2%)
+
+`harness-test --harness all --hooks mock` (default). Test-generated shell hooks
+write event tags to a log file. Verifies that the harness calls hooks correctly
+and that the mock server receives API requests.
+
+### Belt hooks (249/8 — 96.9%)
+
+`harness-test --harness all --hooks belt`. Real `belt plugin hook` commands
+installed via `Install()`. Verifies that belt's actual hook binary fires and
+logs events to `~/.belt/hooks.log`. Requires `BELT_HOOK_DEBUG=1` (set automatically).
+
+| Harness | Binary | API | Hook Format | Events | H | I | Mock | Belt | Install |
 |---|---|---|---|---|---|---|---|---|---|
-| [Claude](./claude-code.md) | `claude` | Anthropic | JSONNested | 6 | ✅ | ✅ | 24 | 0 | `npm -g @anthropic-ai/claude-code` |
-| [Codex](./codex.md) | `codex` | Responses | JSONNested | 6 | ✅ | ✅ | 20 | 1 | `npm -g @openai/codex` |
-| [Copilot](./copilot.md) | `copilot` | OpenAI | JSONCopilot | 2 | ✅ | ✅ | 16 | 0 | `npm -g @github/copilot` |
-| [Droid](./droid.md) | `droid` | OpenAI | JSONNested | 6 | ✅ | ✅ | 21 | 2 | `npm -g droid` |
-| [Gemini](./gemini.md) | `gemini` | Gemini | JSONNested | 6 | ✅ | ✅ | 22 | 0 | `npm -g @google/gemini-cli` |
-| [Goose](./goose.md) | `goose` | OpenAI | JSONNested | 5 | ✅ | ✅ | 22 | 0 | `curl \| tar` (Rust binary) |
-| [Grok](./grok.md) | `grok` | Responses | JSONNested | 4 | ✅ | ✅ | 24 | 0 | `curl x.ai/cli/install.sh` |
-| [Hermes](./hermes.md) | `hermes` | OpenAI | YAML | 4 | ✅ | ✅ | 17 | 0 | `pip install hermes-agent` |
-| [Kilo](./kilo.md) | `kilo` | Responses | TSPlugin | 4 | ✅ | ✅ | 17 | 0 | `npm -g @kilocode/cli` |
-| [Kimi](./kimi.md) | `kimi` | OpenAI | TOML | 5 | ✅ | ✅ | 18 | 0 | `npm -g @moonshot-ai/kimi-code` |
-| [OpenCode](./opencode.md) | `opencode` | Responses | TSPlugin | 4 | ✅ | ✅ | 17 | 0 | `npm -g opencode-ai` |
-| [Pi](./pi.md) | `pi` | OpenAI | TSExtension | 2 | ✅ | ✅ | 10 | 0 | `npm -g @earendil-works/pi-coding-agent` |
-| [Qwen](./qwen.md) | `qwen` | OpenAI | JSONNested | 6 | ✅ | ✅ | 21 | 0 | `npm -g @qwen-code/qwen-code` |
+| [Claude](./claude-code.md) | `claude` | Anthropic | JSONNested | 6 | ✅ | ✅ | 24/0 | 25/0 | `npm -g @anthropic-ai/claude-code` |
+| [Codex](./codex.md) | `codex` | Responses | JSONNested | 6 | ✅ | ✅ | 20/1 | 20/2 | `npm -g @openai/codex` |
+| [Copilot](./copilot.md) | `copilot` | OpenAI | JSONCopilot | 2 | ✅ | ✅ | 16/0 | 16/0 | `npm -g @github/copilot` |
+| [Droid](./droid.md) | `droid` | OpenAI | JSONNested | 6 | ✅ | ✅ | 21/2 | 24/0 | `npm -g droid` |
+| [Gemini](./gemini.md) | `gemini` | Gemini | JSONNested | 6 | ✅ | ✅ | 22/0 | 23/0 | `npm -g @google/gemini-cli` |
+| [Goose](./goose.md) | `goose` | OpenAI | JSONNested | 5 | ✅ | ✅ | 22/0 | 20/2 | `curl \| tar` (Rust binary) |
+| [Grok](./grok.md) | `grok` | Responses | JSONNested | 4 | ✅ | ✅ | 24/0 | 24/0 | `curl x.ai/cli/install.sh` |
+| [Hermes](./hermes.md) | `hermes` | OpenAI | YAML | 4 | ✅ | ✅ | 17/0 | 17/0 | `pip install hermes-agent` |
+| [Kilo](./kilo.md) | `kilo` | Responses | TSPlugin | 4 | ✅ | ✅ | 17/0 | 17/0 | `npm -g @kilocode/cli` |
+| [Kimi](./kimi.md) | `kimi` | OpenAI | TOML | 5 | ✅ | ✅ | 18/0 | 16/2 | `npm -g @moonshot-ai/kimi-code` |
+| [OpenCode](./opencode.md) | `opencode` | Responses | TSPlugin | 4 | ✅ | ✅ | 17/0 | 17/0 | `npm -g opencode-ai` |
+| [Pi](./pi.md) | `pi` | OpenAI | TSExtension | 2 | ✅ | ✅ | 10/0 | 10/0 | `npm -g @earendil-works/pi-coding-agent` |
+| [Qwen](./qwen.md) | `qwen` | OpenAI | JSONNested | 6 | ✅ | ✅ | 21/0 | 20/2 | `npm -g @qwen-code/qwen-code` |
 
-H = headless, I = interactive (PTY/TUI).
+H = headless, I = interactive (PTY/TUI). Pass/Skip format.
 
-### 3 remaining skips
+### Skips
 
-| Skip | Harness | Root cause | Ref |
+| Mode | Skip | Harness | Root cause |
 |---|---|---|---|
-| PreCompact H | Codex | `/compact` is TUI-only (`slash_dispatch.rs`), no auto-compact in exec mode | `registry.go` L438 |
-| PreCompact H | Droid | `exec --session-id` treats `/compact` as user message | `registry.go` L445 |
-| PreCompact I | Droid | Custom model lacks tokenizer metadata, TUI shows "Context Usage Failed to load" | `registry.go` L449 |
+| Mock | PreCompact H | Codex | `/compact` is TUI-only (`slash_dispatch.rs`) |
+| Mock | PreCompact H | Droid | `exec --session-id` treats `/compact` as user message |
+| Mock | PreCompact I | Droid | Custom model lacks tokenizer metadata |
+| Belt | +5 skips | codex, goose, kimi, qwen | Belt startup time causes occasional hook timeouts |
+
+### Timeout quirks
+
+| Harness | Timeout unit | Default | Notes |
+|---|---|---|---|
+| Gemini | milliseconds | 60000ms | `HookTimeoutMs: true` in registry |
+| All others | seconds | varies | |
+
+Gemini interprets the JSON `timeout` field as milliseconds (confirmed from source:
+`chunk-LZUWGCRJ.js:361308`). Belt hooks use 10000ms for gemini, 10s for others.
 
 ## Hook format families
 

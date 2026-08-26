@@ -329,6 +329,7 @@ var All = map[string]Harness{
 		HookConfigDir: ".gemini",
 		HookFileName:  "settings.json",
 		HookWrapper:   `{"baseUrl":"{{.BaseURL}}","security":{"auth":{"selectedType":"gemini-api-key","useExternal":true}},"hooks":%s}`,
+		HookTimeoutMs: true,
 		Events: Events{
 			SessionStart: "SessionStart",
 			PromptSubmit: "BeforeAgent",
@@ -394,6 +395,7 @@ var All = map[string]Harness{
 		HookConfigDir:   ".factory",
 		HookFileName:    "hooks.json",
 		HookWrapper:     "%s",
+		HookNoEnvelope:  true,
 		Events:          standardEvents,
 		ConfigFiles: []ConfigFile{
 			{Path: ".factory/settings.json", Content: `{"customModels":[{"model":"mock-model","displayName":"Mock","baseUrl":"{{.BaseURL}}/v1","apiKey":"mock-key","provider":"openai","maxOutputTokens":4096}]}`},

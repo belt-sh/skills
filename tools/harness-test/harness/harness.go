@@ -50,8 +50,10 @@ type Harness struct {
 	HookFormat    HookFormat
 	HookConfigDir string // where hook config goes (relative to $HOME)
 	HookFileName  string // override hook filename (default: format-dependent)
-	HookWrapper   string // JSON to wrap hooks in (e.g. Claude's permissions + hooks)
-	Events        Events
+	HookWrapper    string // JSON to wrap hooks in (e.g. Claude's permissions + hooks)
+	HookTimeoutMs  bool   // true = timeout field is milliseconds (gemini), false = seconds
+	HookNoEnvelope bool   // true = hooks file is raw hooks object, no {"hooks":...} wrapper (droid)
+	Events         Events
 
 	// Mock tool call configuration
 	ToolCallName     string // tool name in mock responses (default: "Read")

@@ -120,16 +120,24 @@ func beltCmd(event string) string {
 	return fmt.Sprintf("belt plugin hook %s", event)
 }
 
+func hookTimeout(h Harness) int {
+	if h.HookTimeoutMs {
+		return 10000
+	}
+	return 10
+}
+
 func generateJSONNested(name string, h Harness) string {
 	evts := h.Events
 	parts := []string{}
+	timeout := hookTimeout(h)
 
 	add := func(event, beltEvent string, matcher string) {
 		if event == "" {
 			return
 		}
 		cmd := beltCmd(beltEvent)
-		hook := fmt.Sprintf(`{"type":"command","command":"%s","timeout":5}`, cmd)
+		hook := fmt.Sprintf(`{"type":"command","command":"%s","timeout":%d}`, cmd, timeout)
 		if matcher != "" {
 			parts = append(parts, fmt.Sprintf(`"%s":[{"matcher":"%s","hooks":[%s]}]`, event, matcher, hook))
 		} else {
@@ -146,19 +154,23 @@ func generateJSONNested(name string, h Harness) string {
 
 	hooks := "{" + strings.Join(parts, ",") + "}"
 
+	if h.HookNoEnvelope {
+		return hooks
+	}
 	return fmt.Sprintf(`{"hooks":%s}`, hooks)
 }
 
 func generateJSONCopilot(h Harness) string {
 	evts := h.Events
 	parts := []string{}
+	timeout := hookTimeout(h)
 
 	add := func(event, beltEvent string) {
 		if event == "" {
 			return
 		}
-		parts = append(parts, fmt.Sprintf(`"%s":[{"type":"command","bash":"%s","timeoutSec":5}]`,
-			event, beltCmd(beltEvent)))
+		parts = append(parts, fmt.Sprintf(`"%s":[{"type":"command","bash":"%s","timeoutSec":%d}]`,
+			event, beltCmd(beltEvent), timeout))
 	}
 
 	add(evts.PromptSubmit, "user-prompt-submit")
@@ -170,6 +182,7 @@ func generateJSONCopilot(h Harness) string {
 func generateTOML(h Harness) string {
 	evts := h.Events
 	var lines []string
+	timeout := hookTimeout(h)
 
 	add := func(event, beltEvent, matcher string) {
 		if event == "" {
@@ -179,7 +192,7 @@ func generateTOML(h Harness) string {
 		if matcher != "" {
 			lines = append(lines, fmt.Sprintf("matcher = \"%s\"", matcher))
 		}
-		lines = append(lines, fmt.Sprintf("command = \"%s\"\ntimeout = 5", beltCmd(beltEvent)))
+		lines = append(lines, fmt.Sprintf("command = \"%s\"\ntimeout = %d", beltCmd(beltEvent), timeout))
 	}
 
 	add(evts.SessionStart, "session-start", "")
@@ -195,12 +208,13 @@ func generateYAML(h Harness) string {
 	evts := h.Events
 	var lines []string
 	lines = append(lines, "hooks:")
+	timeout := hookTimeout(h)
 
 	add := func(event, beltEvent string) {
 		if event == "" {
 			return
 		}
-		lines = append(lines, fmt.Sprintf("  %s:\n    - command: %s\n      timeout: 5", event, beltCmd(beltEvent)))
+		lines = append(lines, fmt.Sprintf("  %s:\n    - command: %s\n      timeout: %d", event, beltCmd(beltEvent), timeout))
 	}
 
 	add(evts.PromptSubmit, "user-prompt-submit")

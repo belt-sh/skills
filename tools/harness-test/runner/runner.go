@@ -34,6 +34,13 @@ const (
 	ModeInteractive
 )
 
+type HookSource int
+
+const (
+	HooksMock HookSource = iota // test-generated hooks that log to file
+	HooksBelt                   // real belt hooks via Install(), with logging shim
+)
+
 type Runner struct {
 	harness      harness.Harness
 	server       *server.MockServer
@@ -46,6 +53,7 @@ type Runner struct {
 	startTime    time.Time
 	savedEnv     []string
 	mode         Mode
+	hookSource   HookSource
 	failed       bool
 	result       Result
 	lastOutput   string
@@ -55,12 +63,17 @@ var originalHome = os.Getenv("HOME")
 
 func New(h harness.Harness, srv *server.MockServer, baseURL string) *Runner {
 	return &Runner{
-		harness: h,
-		server:  srv,
-		baseURL: baseURL,
-		mode:    ModeBoth,
-		result:  Result{Harness: h.Name},
+		harness:    h,
+		server:     srv,
+		baseURL:    baseURL,
+		mode:       ModeBoth,
+		hookSource: HooksMock,
+		result:     Result{Harness: h.Name},
 	}
+}
+
+func (r *Runner) SetHookSource(s HookSource) {
+	r.hookSource = s
 }
 
 func (r *Runner) SetMode(m string) {
@@ -102,7 +115,11 @@ func (r *Runner) Run() Result {
 	}
 	r.setupEndpoint()
 	r.writeConfigFiles()
-	r.writeHooks()
+	if r.hookSource == HooksBelt {
+		r.writeBeltHooks()
+	} else {
+		r.writeHooks()
+	}
 	r.setupSkills()
 
 	if r.mode == ModeBoth || r.mode == ModeHeadless {
@@ -372,6 +389,61 @@ func (r *Runner) writeHooks() {
 	r.pass(fmt.Sprintf("hooks configured (code: %s)", r.injectCode))
 }
 
+func (r *Runner) writeBeltHooks() {
+	fmt.Println("[phase 3] hooks (belt)")
+
+	os.Setenv("BELT_HOOK_DEBUG", "1")
+	os.Setenv("BELT_NO_HOOKS", "0")
+	os.MkdirAll(filepath.Join(r.home, ".belt"), 0755)
+
+	// Harnesses with HookWrapper need the non-hook config (permissions, base URL, auth)
+	// pre-seeded so Install()'s merge adds hooks alongside them.
+	if r.harness.HookWrapper != "" && r.harness.HookFileName != "" {
+		r.seedWrapperConfig()
+	}
+
+	result := harness.Install(r.harness.Name, harness.ScopeUser)
+	if result.Error != nil {
+		r.fail("belt hook install: " + result.Error.Error())
+		return
+	}
+
+	if result.Merged {
+		r.pass(fmt.Sprintf("belt hooks merged into %s", result.HooksPath))
+	} else {
+		r.pass(fmt.Sprintf("belt hooks created at %s", result.HooksPath))
+	}
+
+	if r.harness.NeedsGitRepo {
+		repoDir := r.ensureGitRepo()
+		projHookDir := filepath.Join(repoDir, r.harness.HookConfigDir)
+		os.MkdirAll(projHookDir, 0755)
+		fname := r.harness.HookFileName
+		if fname == "" {
+			fname = "belt.json"
+		}
+		src := filepath.Join(r.home, r.harness.HookConfigDir, fname)
+		if data, err := os.ReadFile(src); err == nil {
+			dst := filepath.Join(projHookDir, fname)
+			os.WriteFile(dst, data, 0644)
+			r.pass(fmt.Sprintf("belt hooks copied to project (%s)", dst))
+		}
+	}
+}
+
+// seedWrapperConfig writes the non-hook fields from HookWrapper so that
+// Install()'s merge adds hooks into a file that already has the correct
+// endpoint/permissions config.
+func (r *Runner) seedWrapperConfig() {
+	wrapper := r.expand(r.harness.HookWrapper)
+	// The wrapper is a format string like `{"permissions":...,"hooks":%s}`.
+	// Replace the %s with an empty hooks object to get the base config.
+	base := fmt.Sprintf(wrapper, "{}")
+	path := filepath.Join(r.home, r.harness.HookConfigDir, r.harness.HookFileName)
+	os.MkdirAll(filepath.Dir(path), 0755)
+	os.WriteFile(path, []byte(base), 0644)
+}
+
 func (r *Runner) setupSkills() {
 	if r.harness.SkillsDir == "" {
 		return
@@ -600,6 +672,11 @@ func (r *Runner) runInteractive() {
 func (r *Runner) checkHookEvents(phase string) {
 	fmt.Printf("[phase] hook events (%s)\n", phase)
 
+	if r.hookSource == HooksBelt {
+		r.checkBeltHookEvents(phase)
+		return
+	}
+
 	logContent := ""
 	if data, err := os.ReadFile("/tmp/belt-hook-events.log"); err == nil {
 		logContent = string(data)
@@ -615,6 +692,51 @@ func (r *Runner) checkHookEvents(phase string) {
 			r.pass(fmt.Sprintf("%s: %s hook fired", phase, label))
 		} else {
 			r.skip(fmt.Sprintf("%s: %s hook not fired", phase, label))
+		}
+	}
+
+	if r.server.LogCount() > 0 {
+		r.pass(fmt.Sprintf("%s: mock server received %d request(s)", phase, r.server.LogCount()))
+	}
+}
+
+// beltEventNames maps our internal tag names to belt plugin hook event names.
+var beltEventNames = map[string]string{
+	"SESSION_START": "session-start",
+	"PROMPT":        "user-prompt-submit",
+	"PRE_TOOL":      "pre-tool-use",
+	"POST_TOOL":     "post-tool-use",
+	"STOP":          "stop",
+	"PRE_COMPACT":   "pre-compact",
+}
+
+func (r *Runner) checkBeltHookEvents(phase string) {
+	beltLog := ""
+	if data, err := os.ReadFile(filepath.Join(r.home, ".belt", "hooks.log")); err == nil {
+		beltLog = string(data)
+	}
+
+	ptyContent := stripANSI(r.lastOutput)
+
+	for _, e := range r.eventEntries() {
+		label := strings.ToLower(strings.ReplaceAll(e.Tag, "_", "-"))
+		beltName := beltEventNames[e.Tag]
+
+		found := false
+		if beltName != "" {
+			found = strings.Contains(beltLog, "["+beltName+"]")
+		}
+		if !found {
+			found = strings.Contains(ptyContent, "[belt:hook] "+beltName+" done")
+		}
+		if !found {
+			found = strings.Contains(ptyContent, "belt:")
+		}
+
+		if found {
+			r.pass(fmt.Sprintf("%s: belt %s hook fired", phase, label))
+		} else {
+			r.skip(fmt.Sprintf("%s: belt %s hook not fired", phase, label))
 		}
 	}
 
