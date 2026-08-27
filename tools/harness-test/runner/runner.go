@@ -393,7 +393,9 @@ func (r *Runner) writeBeltHooks() {
 	fmt.Println("[phase 3] hooks (belt)")
 
 	os.Setenv("BELT_HOOK_DEBUG", "1")
+	os.Setenv("BELT_HOOK_DEBUG_LOG", "/tmp/belt-hook-events.log")
 	os.Setenv("BELT_NO_HOOKS", "0")
+	os.Remove("/tmp/belt-hook-events.log")
 	os.MkdirAll(filepath.Join(r.home, ".belt"), 0755)
 
 	// Harnesses with HookWrapper need the non-hook config (permissions, base URL, auth)
@@ -715,6 +717,9 @@ func (r *Runner) checkBeltHookEvents(phase string) {
 	if data, err := os.ReadFile(filepath.Join(r.home, ".belt", "hooks.log")); err == nil {
 		beltLog = string(data)
 	}
+	if data, err := os.ReadFile("/tmp/belt-hook-events.log"); err == nil {
+		beltLog += string(data)
+	}
 
 	ptyContent := stripANSI(r.lastOutput)
 
@@ -728,9 +733,6 @@ func (r *Runner) checkBeltHookEvents(phase string) {
 		}
 		if !found {
 			found = strings.Contains(ptyContent, "[belt:hook] "+beltName+" done")
-		}
-		if !found {
-			found = strings.Contains(ptyContent, "belt:")
 		}
 
 		if found {

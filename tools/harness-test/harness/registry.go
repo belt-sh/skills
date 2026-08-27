@@ -259,7 +259,6 @@ var All = map[string]Harness{
 		Events: Events{
 			SessionStart: "SessionStart",
 			PromptSubmit: "UserPromptSubmit",
-			PreToolUse:   "PreToolUse",
 			PostToolUse:  "PostToolUse",
 			Stop:         "Stop",
 		},
@@ -301,7 +300,6 @@ var All = map[string]Harness{
 		Events: Events{
 			SessionStart: "SessionStart",
 			PromptSubmit: "UserPromptSubmit",
-			PreToolUse:   "PreToolUse",
 			PostToolUse:  "PostToolUse",
 			Stop:         "Stop",
 		},

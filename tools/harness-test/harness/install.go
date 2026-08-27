@@ -262,7 +262,15 @@ func generateTSPlugin(name string, h Harness) string {
 	add(evts.PromptSubmit, "user-prompt-submit")
 	add(evts.PreToolUse, "pre-tool-use")
 	add(evts.PostToolUse, "post-tool-use")
-	add(evts.Stop, "stop")
+
+	if evts.Stop != "" {
+		hooks = append(hooks, fmt.Sprintf(`    "event": async ({ event }: any) => {
+      if (event && event.type === "%s") {
+        const { execSync } = require("child_process");
+        try { execSync("%s", { timeout: 5000 }); } catch {}
+      }
+    }`, evts.Stop, beltCmd("stop")))
+	}
 
 	body := fmt.Sprintf("export const BeltPlugin = async (_ctx: any) => {\n  return {\n%s,\n  };\n};\n",
 		strings.Join(hooks, ",\n"))
