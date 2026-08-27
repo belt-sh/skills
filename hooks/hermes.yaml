@@ -1,0 +1,13 @@
+hooks:
+  pre_llm_call:
+    - command: belt plugin hook user-prompt-submit
+      timeout: 10
+  pre_tool_call:
+    - command: belt plugin hook pre-tool-use
+      timeout: 10
+  post_tool_call:
+    - command: belt plugin hook post-tool-use
+      timeout: 10
+  on_session_end:
+    - command: belt plugin hook stop
+      timeout: 10
