@@ -19,7 +19,7 @@
     "inference"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/codex-hooks.json",
+  "hooks": "./hooks/codex.json",
   "interface": {
     "displayName": "belt",
     "shortDescription": "inference.sh — 250+ AI apps, skills registry, cross-session memory",

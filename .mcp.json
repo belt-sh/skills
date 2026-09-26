@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "belt": {
+      "type": "http",
+      "url": "https://api.inference.sh/mcp"
+    }
+  }
+}

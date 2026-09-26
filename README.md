@@ -34,6 +34,18 @@ Shows exactly what data is sent before installing. Supported agents:
 | Cursor | Copy `hooks/cursor.json` to `.cursor/hooks.json` |
 | Windsurf | Copy `hooks/windsurf.json` to `.codeium/windsurf/hooks.json` |
 
+## Claude (claude.ai, desktop, Cowork, Claude Code)
+
+The plugin bundles the belt skills, three agents, and the inference.sh MCP connector (`.mcp.json` → `https://api.inference.sh/mcp`).
+
+| Surface | What loads |
+|---------|-----------|
+| claude.ai chat, desktop, mobile | skills, MCP connector (connect it from the plugin's Connectors tab) |
+| Cowork | skills, agents, MCP connector |
+| Claude Code | skills, agents, MCP connector. Hooks come from `belt plugin init claude`, not the plugin |
+
+The connector signs in with OAuth to your inference.sh account. It sends the tool calls Claude makes (app inputs, knowledge and skill queries) to `api.inference.sh` and returns results. Skills that call the belt CLI need it installed and only run where Claude has a shell (Claude Code).
+
 ## What you get
 
 `/belt` `/skill` `/skillify` `/knowledge` `/apps` `/suggest` `/agentify` `/appify` `/flowify`

@@ -11,28 +11,28 @@
   "hooks": [
     {
       "event": "SessionStart",
-      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-session-start.sh",
+      "command": "${KIMI_PLUGIN_ROOT}/scripts/hook-session-start.sh",
       "timeout": 60
     },
     {
       "event": "UserPromptSubmit",
-      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-user-prompt.sh",
+      "command": "${KIMI_PLUGIN_ROOT}/scripts/hook-user-prompt.sh",
       "timeout": 3
     },
     {
       "event": "PreToolUse",
       "matcher": "Read",
-      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-post-tool.sh",
+      "command": "${KIMI_PLUGIN_ROOT}/scripts/hook-post-tool.sh",
       "timeout": 5
     },
     {
       "event": "PostToolUse",
-      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-post-tool.sh",
+      "command": "${KIMI_PLUGIN_ROOT}/scripts/hook-post-tool.sh",
       "timeout": 3
     },
     {
       "event": "Stop",
-      "command": "${KIMI_PLUGIN_ROOT}/bin/hook-stop.sh",
+      "command": "${KIMI_PLUGIN_ROOT}/scripts/hook-stop.sh",
       "timeout": 60
     }
   ],
