@@ -1,7 +1,7 @@
 {
   "name": "belt",
   "displayName": "belt",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Belt — the cloud platform for AI agents. Run 250+ AI apps, manage knowledge, search and publish skills, connect MCP servers.",
   "author": {
     "name": "inference.sh",
@@ -18,5 +18,9 @@
     "ai",
     "agents",
     "inference"
-  ]
+  ],
+  "documentationUrl": "https://inference.sh/docs/connectors/mcp-server",
+  "privacyPolicyUrl": "https://inference.sh/privacy",
+  "termsOfServiceUrl": "https://inference.sh/terms",
+  "supportUrl": "mailto:hello@inference.sh"
 }

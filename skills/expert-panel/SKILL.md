@@ -1,7 +1,7 @@
 ---
 name: expert-panel
 description: "Run a simulated expert panel on a strategic question — brief 4-8 named experts in parallel, synthesize into consensus table"
-allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(ls *)
+allowed-tools: Agent, Read, Glob, Grep, Bash(ls *)
 ---
 
 ## Expert Panel

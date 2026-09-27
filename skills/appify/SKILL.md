@@ -1,7 +1,7 @@
 ---
 name: appify
 description: "Build and deploy an inference.sh app from a conversation — scaffold, implement, test, deploy, and configure pricing. Use when the user says 'appify', 'make an app', 'deploy this as an app', or when a working API integration, model wrapper, or processing pipeline should become a reusable cloud app."
-allowed-tools: Bash(belt *), Read, Write, Edit, Glob, Grep, Agent
+allowed-tools: Bash(belt *), Read, Glob, Grep, Agent
 ---
 
 ## Appify

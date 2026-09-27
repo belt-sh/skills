@@ -21,7 +21,7 @@ BYOK via `customModels` in `~/.factory/settings.json` with env-var interpolation
   "customModels": [{
     "name": "test",
     "provider": "openai",
-    "apiKey": "${OPENAI_API_KEY}",
+    "apiKey": "<your OpenAI API key>",
     "baseUrl": "http://localhost:4100/v1"
   }]
 }

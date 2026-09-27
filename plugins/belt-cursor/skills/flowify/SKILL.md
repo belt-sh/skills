@@ -1,7 +1,7 @@
 ---
 name: flowify
 description: "Build and deploy an inference.sh flow — chain multiple apps into a pipeline with wired inputs/outputs. Use when the user says 'flowify', 'make a flow', 'chain these apps', 'build a pipeline', or when multiple apps should run in sequence with outputs feeding into inputs."
-allowed-tools: Bash(belt *), Read, Write, Edit, Glob, Grep, Agent
+allowed-tools: Bash(belt *), Read, Glob, Grep, Agent
 ---
 
 ## Flowify

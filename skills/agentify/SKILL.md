@@ -1,7 +1,7 @@
 ---
 name: agentify
 description: "Build and deploy a custom AI agent on belt — define purpose, model, tools, system prompt, and deploy as a reusable agent. Use when the user says 'agentify', 'make an agent', 'create an agent', 'build a bot', or wants to turn a workflow into a deployed agent with tools."
-allowed-tools: Bash(belt *), Read, Write, Edit, Glob, Grep, Agent
+allowed-tools: Bash(belt *), Read, Glob, Grep, Agent
 ---
 
 ## Agentify

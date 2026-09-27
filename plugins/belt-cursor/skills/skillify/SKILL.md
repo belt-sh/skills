@@ -1,7 +1,7 @@
 ---
 name: skillify
 description: "Turn a working solution into a permanent, tested skill — extract pattern, interrogate for depth, create SKILL.md, publish to registry. Use when the user says 'skillify', 'make this a skill', 'remember this as a skill', or when a multi-step workflow was refined through trial and error."
-allowed-tools: Bash(belt skill *), Read, Glob, Grep, Write, Edit, Agent
+allowed-tools: Bash(belt skill *), Read, Glob, Grep, Agent
 ---
 
 ## Skillify
