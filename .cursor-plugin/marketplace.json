@@ -12,7 +12,7 @@
     {
       "name": "belt",
       "source": "./plugins/belt-cursor",
-      "description": "Belt — the cloud platform for AI agents. Run 250+ AI apps, manage knowledge, search and publish skills, connect MCP servers."
+      "description": "Belt — the cloud platform for AI agents. Run AI apps, manage knowledge, search and publish skills, connect MCP servers."
     }
   ]
 }
