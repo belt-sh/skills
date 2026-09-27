@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "belt",
-      "description": "Belt — the cloud platform for AI agents. Run AI apps, manage knowledge, search and publish skills, connect MCP servers.",
+      "description": "Belt — the cloud platform for AI agents. Run hundreds of AI apps, manage knowledge, search and publish skills, connect MCP servers.",
       "source": "./",
       "skills": [
         "./skills/belt",

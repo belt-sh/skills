@@ -1,6 +1,6 @@
 ---
 name: apps
-description: "Search and run AI apps — image generation, video, TTS, web search, LLMs"
+description: "Search and run hundreds of AI apps — image generation, video, TTS, web search, LLMs"
 allowed-tools: Bash(belt app *)
 ---
 

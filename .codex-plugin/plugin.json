@@ -1,7 +1,7 @@
 {
   "name": "belt",
   "version": "1.0.0",
-  "description": "Belt — the cloud platform for AI agents. Run AI apps, manage knowledge, search and publish skills, connect MCP servers.",
+  "description": "Belt — the cloud platform for AI agents. Run hundreds of AI apps, manage knowledge, search and publish skills, connect MCP servers.",
   "author": {
     "name": "inference.sh",
     "email": "hello@inference.sh"
@@ -22,7 +22,7 @@
   "hooks": "./hooks/codex.json",
   "interface": {
     "displayName": "belt",
-    "shortDescription": "inference.sh — AI apps, skills registry, cross-session memory",
+    "shortDescription": "inference.sh — hundreds of AI apps, skills registry, cross-session memory",
     "developerName": "inference.sh",
     "category": "Productivity",
     "websiteURL": "https://belt.sh",
