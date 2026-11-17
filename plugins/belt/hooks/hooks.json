@@ -2,11 +2,10 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-session-start.sh",
+            "command": "belt plugin hook session-start",
             "timeout": 60
           }
         ]
@@ -17,8 +16,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-user-prompt.sh",
-            "timeout": 3
+            "command": "belt plugin hook user-prompt-submit",
+            "timeout": 10
           }
         ]
       }
@@ -29,30 +28,20 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-skill-use.sh",
-            "timeout": 5
+            "command": "belt plugin hook pre-tool-use",
+            "timeout": 10
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-post-tool.sh",
-            "timeout": 3
-          }
-        ]
-      },
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-skill-post.sh",
-            "timeout": 5
+            "command": "belt plugin hook post-tool-use",
+            "timeout": 10
           }
         ]
       }
@@ -62,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-stop.sh",
+            "command": "belt plugin hook stop",
             "timeout": 60,
             "async": true
           }
@@ -74,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-pre-compact.sh",
+            "command": "belt plugin hook pre-compact",
             "timeout": 60,
             "async": true
           }
@@ -86,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/hook-session-end.sh",
+            "command": "belt plugin hook session-end",
             "timeout": 600
           }
         ]
