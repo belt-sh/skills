@@ -1,0 +1,20 @@
+
+[[hooks]]
+event = "SessionStart"
+command = "belt plugin hook session-start"
+timeout = 10
+
+[[hooks]]
+event = "UserPromptSubmit"
+command = "belt plugin hook user-prompt-submit"
+timeout = 10
+
+[[hooks]]
+event = "PostToolUse"
+command = "belt plugin hook post-tool-use"
+timeout = 10
+
+[[hooks]]
+event = "Stop"
+command = "belt plugin hook stop"
+timeout = 10

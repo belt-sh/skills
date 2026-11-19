@@ -1,0 +1,1 @@
+{"version":1,"hooks":{"userPromptSubmitted":[{"type":"command","bash":"belt plugin hook user-prompt-submit","timeoutSec":10}],"sessionEnd":[{"type":"command","bash":"belt plugin hook stop","timeoutSec":10}]}}
