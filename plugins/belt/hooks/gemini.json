@@ -1,1 +1,59 @@
-{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"belt plugin hook session-start","timeout":10000}]}],"BeforeAgent":[{"hooks":[{"type":"command","command":"belt plugin hook user-prompt-submit","timeout":10000}]}],"BeforeTool":[{"matcher":"*","hooks":[{"type":"command","command":"belt plugin hook pre-tool-use","timeout":10000}]}],"AfterTool":[{"hooks":[{"type":"command","command":"belt plugin hook post-tool-use","timeout":10000}]}],"SessionEnd":[{"hooks":[{"type":"command","command":"belt plugin hook stop","timeout":10000}]}],"PreCompress":[{"hooks":[{"type":"command","command":"belt plugin hook pre-compact","timeout":10000}]}]}}
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt plugin hook session-start",
+            "timeout": 60000
+          }
+        ]
+      }
+    ],
+    "BeforeAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt plugin hook user-prompt-submit",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt plugin hook post-tool-use",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt plugin hook stop",
+            "timeout": 60000
+          }
+        ]
+      }
+    ],
+    "PreCompress": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "belt plugin hook pre-compact",
+            "timeout": 60000
+          }
+        ]
+      }
+    ]
+  }
+}

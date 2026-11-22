@@ -1,1 +1,40 @@
-{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"belt plugin hook session-start","timeout":10}]}],"UserPromptSubmit":[{"hooks":[{"type":"command","command":"belt plugin hook user-prompt-submit","timeout":10}]}],"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"belt plugin hook pre-tool-use","timeout":10}]}],"PostToolUse":[{"hooks":[{"type":"command","command":"belt plugin hook post-tool-use","timeout":10}]}],"Stop":[{"hooks":[{"type":"command","command":"belt plugin hook stop","timeout":10}]}],"PreCompact":[{"hooks":[{"type":"command","command":"belt plugin hook pre-compact","timeout":10}]}]}}
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "belt plugin hook session-start",
+        "timeout": 60
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "type": "command",
+        "command": "belt plugin hook user-prompt-submit",
+        "timeout": 10
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "command": "belt plugin hook post-tool-use",
+        "timeout": 10
+      }
+    ],
+    "stop": [
+      {
+        "type": "command",
+        "command": "belt plugin hook stop",
+        "timeout": 60
+      }
+    ],
+    "preCompact": [
+      {
+        "type": "command",
+        "command": "belt plugin hook pre-compact",
+        "timeout": 60
+      }
+    ]
+  }
+}
