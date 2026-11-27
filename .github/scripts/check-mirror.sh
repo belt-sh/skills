@@ -26,10 +26,7 @@ TREES=(skills agents hooks bin rules)
 # Paths deliberately absent from the plugin. Listing them here keeps the
 # exclusion visible — an undocumented gap is indistinguishable from a mistake.
 #   expert-panel     — never shipped as a slash command
-#   codex-hooks.json — the hooks file plugins/belt/.codex-plugin/plugin.json
-#                      loads. It is tuned for Codex (exec_command matcher,
-#                      bin/ shims) and has no top-level counterpart.
-EXCLUDE=(expert-panel codex-hooks.json)
+EXCLUDE=(expert-panel)
 
 diff_args=()
 for name in "${EXCLUDE[@]}"; do

@@ -11,8 +11,10 @@
 #
 # BELT selects the belt binary (default: belt on PATH).
 #
-# plugins/belt/hooks/codex-hooks.json is not generated: the Codex plugin
-# manifest loads it and it still calls the plugin's bin/ scripts.
+# The Codex plugin manifest loads hooks/codex.json like every other agent's
+# file: plain `belt plugin hook <event>` commands, measured on codex-cli
+# 0.172 to fire SessionStart, UserPromptSubmit, PostToolUse (matcher Bash,
+# on exec_command) and Stop once the hooks are trusted.
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."

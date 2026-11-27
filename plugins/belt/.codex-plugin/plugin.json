@@ -1,6 +1,6 @@
 {
   "name": "belt",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Belt — the cloud platform for AI agents. Run hundreds of AI apps, manage knowledge, search and publish skills, connect MCP servers.",
   "author": {
     "name": "inference.sh",
@@ -19,7 +19,7 @@
     "inference"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/codex-hooks.json",
+  "hooks": "./hooks/codex.json",
   "interface": {
     "displayName": "belt",
     "shortDescription": "inference.sh — hundreds of AI apps, skills registry, cross-session memory",

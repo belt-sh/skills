@@ -56,7 +56,7 @@ Notes:
 | Harness | Plugin Format | Marketplace | Belt Plugin | Hooks Source |
 |---|---|---|---|---|
 | Claude Code | `.claude-plugin/` dir | `claude plugin marketplace add` | ✅ `hooks.json` | settings.json or plugin hooks/ |
-| Codex | `.codex-plugin/` dir | `codex plugin marketplace add` | ✅ `codex-hooks.json` | plugin hooks/ only |
+| Codex | `.codex-plugin/` dir | `codex plugin marketplace add` | ✅ `hooks/codex.json` (generated) | plugin hooks/ only |
 | Copilot | hooks/ dir (v1 JSON) | built-in | hooks dir | `.copilot/hooks/belt.json` |
 | Grok | hooks/ dir (JSON) | marketplace | ❌ planned | `.grok/hooks/belt.json` |
 | Pi | TS extension | — | — | `.pi/agent/extensions/` |
